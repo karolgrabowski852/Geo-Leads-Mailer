@@ -1,9 +1,7 @@
 from django.contrib import admin
 from django import forms
-from django.db import models
 from .models import User, SearchQuery, Company
-from django.contrib.auth.hashers import make_password, identify_hasher
-from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
 class SearchQueryForm(forms.ModelForm):
     class Meta:
@@ -35,32 +33,36 @@ class UserForm(forms.ModelForm):
         model = User
         fields = (
             'username', 'email', 'password', 'language', 'country',
-            'results', 'credentials'
+            'results', 'credentials', 'token', 'is_active', 'is_staff',
+            'is_superuser', 'groups', 'user_permissions',
         )
         widgets = {
             'password': forms.PasswordInput(),
             'results': forms.CheckboxSelectMultiple(),
             'credentials': forms.FileInput(),
+            'token': forms.FileInput(),
         }
 
 @admin.register(User)
-class UserAdmin(admin.ModelAdmin):
+class UserAdmin(DjangoUserAdmin):
     form = UserForm
-    list_display = ('username', 'email', 'language', 'country', 'results_count', 'has_credentials', 'token')
+    list_display = (
+        'username', 'email', 'language', 'country', 'is_staff',
+        'is_superuser', 'results_count', 'has_credentials', 'token',
+    )
     search_fields = ('username', 'email')
-    filter_horizontal = ('results',)
-    
+    filter_horizontal = ('results', 'groups', 'user_permissions')
+
+    fieldsets = DjangoUserAdmin.fieldsets + (
+        ('Geo Leads', {'fields': ('language', 'country', 'results', 'credentials', 'token')}),
+    )
+
+    add_fieldsets = DjangoUserAdmin.add_fieldsets + (
+        ('Geo Leads', {'fields': ('language', 'country', 'results', 'credentials', 'token')}),
+    )
+
     def results_count(self, obj):
         return obj.results.count()
-
-    def save_model(self, request, obj, form, change):
-        pwd = form.cleaned_data.get('password')
-        if pwd:
-            try:
-                identify_hasher(pwd)
-            except Exception:
-                obj.password = make_password(pwd)
-        super().save_model(request, obj, form, change)
 
     def has_credentials(self, obj):
         return True if obj.credentials else False

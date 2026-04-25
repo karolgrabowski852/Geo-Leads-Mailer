@@ -1,153 +1,137 @@
-import json
-import  httpx
+import httpx
 from apps.config import config, logger
-from typing import Self
-import json
+from typing import Self, List
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
 
 
+class Point(BaseModel):
+    lat: float
+    lng: float
+
 
 class Rect(BaseModel):
-    low: tuple[float, float]
-    high: tuple[float, float]
+    low: Point
+    high: Point
+
 
 class Query(ABC):
-    def __init__(self, location: str, language="pl", country="PL"):
-        self.location = location       
+    def __init__(self, language="pl", country="PL"):
         self.language = language
         self.country = country
+        self.query = ""
 
     @abstractmethod
     def search(self) -> dict:
         pass
 
-    @abstractmethod
-    def set_query(self, query: str) -> Self:
-        pass
-
-
-class LocationQuery(Query):
-    def __init__(self, location: str = "Polska", language: str = "pl", country: str = "PL"):
-        super().__init__(location=location, language=language, country=country)
-        self.location = location
-
     def set_query(self, query: str) -> Self:
         self.query = query
-        return self    
+        return self
 
+class PolygonQuery(Query):
+    def __init__(
+        self,
+        polygon_coords: List[dict],
+        language: str = "pl",
+        country: str = "PL",
+    ):
+        super().__init__(language=language, country=country)
+        self.polygon = [Point(**p) for p in polygon_coords]
 
-    def geometry(self):
-        url = "https://maps.googleapis.com/maps/api/geocode/json"
-        params = {
-            "address": self.location,
-            "key": config.google_location_api_key
+    def get_bounding_box(self) -> Rect:
+        """Tworzy prostokąt ograniczający (Bounding Box) dla poligonu."""
+        lats = [p.lat for p in self.polygon]
+        lngs = [p.lng for p in self.polygon]
+        return Rect(
+            low=Point(lat=min(lats), lng=min(lngs)),
+            high=Point(lat=max(lats), lng=max(lngs))
+        )
+
+    def is_point_in_polygon(self, lat: float, lng: float) -> bool:
+        """Ray-Casting: sprawdza, czy punkt leży wewnątrz obszaru."""
+        n = len(self.polygon)
+        inside = False
+        p1 = self.polygon[0]
+        for i in range(1, n + 1):
+            p2 = self.polygon[i % n]
+            if min(p1.lng, p2.lng) < lng <= max(p1.lng, p2.lng):
+                if lat <= max(p1.lat, p2.lat):
+                    if p1.lng != p2.lng:
+                        xinters = (
+                            (lng - p1.lng) * (p2.lat - p1.lat)
+                            / (p2.lng - p1.lng)
+                            + p1.lat
+                        )
+                    if p1.lat == p2.lat or lat <= xinters:
+                        inside = not inside
+            p1 = p2
+        return inside
+
+    def search(self) -> dict:
+        unique_places = {}
+        bounds = self.get_bounding_box()
+
+        url = 'https://places.googleapis.com/v1/places:searchText'
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': config.google_location_api_key,
+            'X-Goog-FieldMask': (
+                'places.id,places.displayName,places.formattedAddress,'
+                'places.websiteUri,places.nationalPhoneNumber,'
+                'places.location,nextPageToken'
+            ),
         }
 
-        response = httpx.get(url, params=params)
-        data = response.json()
-        
-        if data["results"]:
-            bounds = data["results"][0]["geometry"]["bounds"]
-            return {
-                "northeast": bounds["northeast"],
-                "southwest": bounds["southwest"]
-            }
-        return None
-
-    def generate_rectangles(self, step_minutes=10.0) -> list[Rect]:
-
-        bounds = self.geometry()
-        if not bounds:
-            return []
-        
-        step_deg = step_minutes / 60.0
-        
-        sw_lat = bounds["southwest"]["lat"]
-        sw_lng = bounds["southwest"]["lng"] 
-        ne_lat = bounds["northeast"]["lat"]
-        ne_lng = bounds["northeast"]["lng"]
-        
-        rectangles = []
-        
-        lat = sw_lat
-        while lat < ne_lat:
-            lng = sw_lng
-            while lng < ne_lng:
-                high_lat = min(lat + step_deg, ne_lat)
-                high_lng = min(lng + step_deg, ne_lng)
-                
-                rect = Rect(
-                    low=(lat, lng),           # southwest corner
-                    high=(high_lat, high_lng) # northeast corner
-                )
-                rectangles.append(rect)
-                
-                lng += step_deg
-            lat += step_deg
-        logger.info(f"Generated {len(rectangles)} rectangles with {step_minutes}' spacing")
-
-        return rectangles
-
-    def search(self, rectangles: list[Rect]) -> dict:
-        unique_places = {}  
-        for rect in rectangles:
-            url = 'https://places.googleapis.com/v1/places:searchText'
-
-            headers = {
-                'Content-Type': 'application/json',
-                'X-Goog-Api-Key': config.google_location_api_key,
-                'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.websiteUri,places.nationalPhoneNumber,places.businessStatus,nextPageToken'
-            }
-        
-            next_page_token = None
-            max_pages = 20 
-
-            for _ in range(max_pages):
-
-                data = {    
-                    "textQuery": f"{self.query} in {self.location}",
-                    "languageCode": self.language,
-                    "regionCode": self.country,
-                    "maxResultCount": 20,
-                    "locationBias": {
-                        "rectangle": {
-                            "low": {
-                                "latitude": rect.low[0],
-                                "longitude": rect.low[1]
-                            },
-                            "high": {
-                                "latitude": rect.high[0],
-                                "longitude": rect.high[1]
-                            }
-                        }
+        next_page_token = None
+        for _ in range(5):  # Max 5 stron wyników (ok. 100 miejsc)
+            data = {
+                "textQuery": self.query,
+                "languageCode": self.language,
+                "regionCode": self.country,
+                "pageSize": 20,
+                "locationRestriction": {
+                    "rectangle": {
+                        "low": {
+                            "latitude": bounds.low.lat,
+                            "longitude": bounds.low.lng,
+                        },
+                        "high": {
+                            "latitude": bounds.high.lat,
+                            "longitude": bounds.high.lng,
+                        },
                     }
                 }
-                
-                if next_page_token:
-                    data["pageToken"] = next_page_token
+            }
+            if next_page_token:
+                data["pageToken"] = next_page_token
 
-                response = httpx.post(url, json=data, headers=headers)
-                result = response.json()
-                
-                if "places" in result:
-                    for place in result["places"]:
-                        place_key = place.get("displayName", {}).get("text", "")
-                        if place_key and place_key not in unique_places:
+            response = httpx.post(url, json=data, headers=headers)
+            res_data = response.json()
+
+            if "places" in res_data:
+                for place in res_data["places"]:
+                    loc = place.get("location", {})
+                    lat, lng = loc.get("latitude"), loc.get("longitude")
+
+                    if (
+                        lat is not None
+                        and lng is not None
+                        and self.is_point_in_polygon(lat, lng)
+                    ):
+                        place_id = place.get("id")
+                        place_key = (
+                            place_id
+                            or place.get("displayName", {}).get("text", "Unknown")
+                        )
+                        if place_key not in unique_places:
                             unique_places[place_key] = place
-                
-                next_page_token = result.get("nextPageToken")
-                if not next_page_token:
-                    break
 
-        if len(unique_places) == 0:
-            raise ValueError("No places found for the given query and location.")
-        
-        return {f'{self.location}-{self.query}' : unique_places}
+            next_page_token = res_data.get("nextPageToken")
+            if not next_page_token:
+                break
 
-
-    def save(self, results: dict) -> None:
-        with open(f"results/{self.location}-{self.query}.json", "w", encoding="utf-8") as f:
-            json.dump(results, f, ensure_ascii=False, indent=4)
-
-
+        logger.info(
+            f"Zaleziono {len(unique_places)} firm w zdefiniowanym poligonie."
+        )
+        return {f"polygon_search_{self.query}": unique_places}

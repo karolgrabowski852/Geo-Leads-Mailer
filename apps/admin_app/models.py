@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import AbstractUser
 from rest_framework import serializers
 from pathlib import Path
 import uuid
@@ -14,10 +15,8 @@ def save_file(instance, filename: str) -> str:
     enddir = 'token' if filename.startswith('token') else 'credentials'
     return f"uploads/{enddir}/{name}.json"
 
-class User(models.Model):
-    username = models.CharField(max_length=150, unique=True)
+class User(AbstractUser):
     email = models.EmailField(unique=True)
-    password = models.CharField(max_length=128)
     language = models.CharField(max_length=8, default='pl')
     country = models.CharField(max_length=8, default='PL')
     results = models.ManyToManyField(

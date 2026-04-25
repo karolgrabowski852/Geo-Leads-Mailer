@@ -1,0 +1,147 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-emailbot}
+      POSTGRES_USER: ${POSTGRES_USER:-emailbot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emailbot}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    env_file:
+      - .env
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  uploads_init:
+    image: python:3.12-slim-bookworm
+    user: "0:0"
+    command: bash -lc "mkdir -p /app/uploads/credentials /app/uploads/token && chown -R 10001:10001 /app/uploads"
+    volumes:
+      - uploads_data:/app/uploads
+    restart: "no"
+
+  staticfiles_init:
+    image: python:3.12-slim-bookworm
+    user: "0:0"
+    command: bash -lc "mkdir -p /app/staticfiles && chown -R 10001:10001 /app/staticfiles"
+    volumes:
+      - staticfiles_data:/app/staticfiles
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: bash -lc "uv run manage.py migrate --noinput && uv run manage.py collectstatic --noinput && uv run gunicorn apps.wsgi:application -b 0.0.0.0:8000 --workers 3 --threads 2 --timeout 120"
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./apps:/app/apps:ro
+      - ./manage.py:/app/manage.py:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+      - uploads_data:/app/uploads
+      - staticfiles_data:/app/staticfiles
+    depends_on:
+      uploads_init:
+        condition: service_completed_successfully
+      staticfiles_init:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      redis:
+        condition: service_started
+
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      web:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - staticfiles_data:/staticfiles:ro
+      - uploads_data:/uploads:ro
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+      - /dev/null:/etc/nginx/conf.d/default.conf
+
+    restart: unless-stopped
+    
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes: 
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+  celery_rabbit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: bash -lc "uv run celery -A apps.celery:celery_rabbit worker -Q rabbit_tasks -n rabbit@%h -l info"
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./apps:/app/apps:ro
+      - ./manage.py:/app/manage.py:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+      - uploads_data:/app/uploads
+    depends_on:
+      uploads_init:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_started
+      db:
+        condition: service_healthy
+
+  celery_redis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: bash -lc "uv run celery -A apps.celery:celery_redis worker -Q redis_tasks -n redis@%h -l info"
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./apps:/app/apps:ro
+      - ./manage.py:/app/manage.py:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+      - uploads_data:/app/uploads
+    depends_on:
+      uploads_init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  uploads_data:
+  staticfiles_data:
+  certbot-www:
+  certbot-etc:
+  certbot-var:

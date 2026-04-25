@@ -5,7 +5,7 @@ services:
     env_file:
       - .env
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-emailbot}
+      POSTGRES_DB: db
       POSTGRES_USER: ${POSTGRES_USER:-emailbot}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emailbot}
     volumes:
@@ -49,6 +49,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
     command: bash -lc "uv run manage.py migrate --noinput && uv run manage.py collectstatic --noinput && uv run gunicorn apps.wsgi:application -b 0.0.0.0:8000 --workers 3 --threads 2 --timeout 120"
     env_file:
       - .env
@@ -72,30 +74,6 @@ services:
         condition: service_started
 
 
-  nginx:
-    image: nginx:1.27-alpine
-    depends_on:
-      web:
-        condition: service_started
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - staticfiles_data:/staticfiles:ro
-      - uploads_data:/uploads:ro
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-      - /dev/null:/etc/nginx/conf.d/default.conf
-
-    restart: unless-stopped
-    
-  certbot:
-    image: certbot/certbot
-    container_name: certbot
-    volumes: 
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
   celery_rabbit:
     build:
       context: .
@@ -142,6 +120,5 @@ volumes:
   pgdata:
   uploads_data:
   staticfiles_data:
-  certbot-www:
-  certbot-etc:
-  certbot-var:
+
+

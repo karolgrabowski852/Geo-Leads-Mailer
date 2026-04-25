@@ -1,108 +1,63 @@
 {% extends 'app/base.html' %}
+{% load static %}
 
 {% block title %}Search companies — Email Bot{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+<style>
+    .leaflet-container { z-index: 10; }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="max-w-5xl mx-auto">
     <section class="mb-12">
         <div class="relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/60 backdrop-blur p-10 flex flex-col lg:flex-row gap-10 shadow-soft">
             <div class="flex-1 min-w-[260px]">
-                <h1 class="text-3xl font-bold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-brand-600 to-sky-500">Discover Companies Effortlessly</h1>
-                <p class="text-slate-600 dark:text-slate-300 leading-relaxed mb-6">Search Google Places for local businesses, enrich them with website emails and prepare curated mailing lists.</p>
+                <h1 class="text-3xl font-bold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-brand-600 to-sky-500">Polygon Search</h1>
+                <p class="text-slate-600 dark:text-slate-300 leading-relaxed mb-6">Zdefiniuj obszar poszukiwań rysując poligon na mapie i znajdź firmy za pomocą Google Places API.</p>
                 <ul class="grid gap-3 text-sm text-slate-600 dark:text-slate-400 mb-6">
-                    <li class="flex items-start gap-2"><span class="h-5 w-5 rounded bg-brand-500 text-white flex items-center justify-center text-xs font-semibold">1</span><span>Enter a city & keyword</span></li>
-                    <li class="flex items-start gap-2"><span class="h-5 w-5 rounded bg-brand-500 text-white flex items-center justify-center text-xs font-semibold">2</span><span>Preview extracted data</span></li>
-                    <li class="flex items-start gap-2"><span class="h-5 w-5 rounded bg-brand-500 text-white flex items-center justify-center text-xs font-semibold">3</span><span>Send personalised outreach</span></li>
+                    <li class="flex items-start gap-2"><span class="h-5 w-5 rounded bg-brand-500 text-white flex items-center justify-center text-xs font-semibold">1</span><span>Narysuj obszar na mapie</span></li>
+                    <li class="flex items-start gap-2"><span class="h-5 w-5 rounded bg-brand-500 text-white flex items-center justify-center text-xs font-semibold">2</span><span>Wpisz czego szukasz (Query)</span></li>
+                    <li class="flex items-start gap-2"><span class="h-5 w-5 rounded bg-brand-500 text-white flex items-center justify-center text-xs font-semibold">3</span><span>Pobierz wyniki</span></li>
                 </ul>
-                <a href="/send_email" class="inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-brand-600 to-sky-600 text-white px-5 py-2.5 text-sm font-semibold shadow-soft hover:shadow-md transition">
-                    <span>Compose Email</span>
-                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M12.293 5.293a1 1 0 011.414 0L18 9.586l-1.414 1.414L14 8.414V17h-2V8.414l-2.586 2.586L8 9.586l4.293-4.293z"/></svg>
-                </a>
             </div>
+            
             <div class="flex-1">
                 <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-soft">
-                    <h2 class="text-lg font-semibold mb-4">Quick Search</h2>
+                    <h2 class="text-lg font-semibold mb-4">Wyszukiwanie obszarowe</h2>
                     <form id="searchForm" method="post" class="space-y-5">
                         {% csrf_token %}
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                            <div>
-                                <label for="city" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">City</label>
-                                <input id="city" name="city" type="text" required placeholder="e.g. Lublin" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/60 focus:border-brand-500" />
-                            </div>
-                            <div>
-                                <label for="query" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Query</label>
-                                <input id="query" name="query" type="text" required placeholder="e.g. bakery" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/60 focus:border-brand-500" />
-                            </div>
-                            <div>
-                                <label for="grid_size_km" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Grid Size (km)
-                                    <span class="relative group inline-flex ml-1 align-middle">
-                                        <svg class="h-3.5 w-3.5 text-slate-400 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                                        <span class="pointer-events-none absolute left-1/2 top-full z-20 mt-2 -translate-x-1/2 w-64 rounded-md bg-slate-900 px-4 py-3 text-xs font-medium text-white opacity-0 shadow-lg transition group-hover:opacity-100 whitespace-normal leading-relaxed">
-                                            Choose the grid size for dividing the city area:
-                                            <br><strong>10 km</strong> = divide city into 10x10 km squares
-                                            <br><strong>1 km</strong> = very detailed 1x1 km squares (slower, more results)
-                                            <br><strong>Higher values</strong> = larger squares, faster & cheaper
+                        <input type="hidden" id="polygon_coords" name="polygon_coords" value="">
                         
-                                        </span>
-                                    </span>
-                                </label>
-                                <input id="grid_size_km" name="grid_size" type="number" step="1" min="1" max="50" value="10" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/60 focus:border-brand-500" />
-                            </div>
+                        <div>
+                            <label for="query" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Czego szukasz?</label>
+                            <input id="query" name="query" type="text" required placeholder="np. Restauracje, Fryzjerzy" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/60 focus:border-brand-500" />
                         </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Obszar wyszukiwania</label>
+                            <div id="map" class="h-80 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700"></div>
+                        </div>
+
                         <div class="flex items-center gap-4 pt-2">
-                            <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 text-sm font-medium shadow-soft focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-600">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m21 21-4.35-4.35"/><circle cx="11" cy="11" r="7"/></svg>
-                                <span>Search companies</span>
+                            <button type="submit" id="submitBtn" class="inline-flex items-center gap-2 rounded-md bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 text-sm font-medium shadow-soft">
+                                <span>Uruchom wyszukiwanie</span>
                             </button>
-                            <button type="reset" class="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">Reset</button>
+                            <button type="button" id="resetBtn" class="text-sm text-slate-500 hover:text-slate-700">Wyczyść mapę</button>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
     </section>
-    <section id="resultsSection" class="hidden">
-        <div class="mb-4 flex items-center justify-between">
-            <h2 class="text-xl font-semibold flex items-center gap-3">Results <span id="gridSizeBadge" class="hidden text-xs font-medium px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">Grid: 0 km</span></h2>
-            <button id="exportBtn" class="hidden text-xs font-medium px-3 py-1.5 rounded-md border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700/70">Export JSON</button>
-        </div>
-        <div id="result" class="relative"></div>
-    </section>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script>
-    const form=document.getElementById('searchForm');
-    const resultDiv=document.getElementById('result');
-    const resultsSection=document.getElementById('resultsSection');
-    const exportBtn=document.getElementById('exportBtn');
-    const accuracyBadge=document.getElementById('gridSizeBadge');
-    function setLoading(){resultsSection.classList.remove('hidden');resultDiv.innerHTML=`<div class='grid gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-pulse'>${Array.from({length:6}).map(()=>`<div class='rounded-lg border border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-800/50 p-4 h-36'></div>`).join('')}</div>`}
-    form.addEventListener('submit',async e=>{e.preventDefault();const city=document.getElementById('city').value;const query=document.getElementById('query').value;const accuracy=document.getElementById('grid_size_km').value||'10';const csrfToken=document.querySelector('[name=csrfmiddlewaretoken]').value;setLoading();try{const resp=await fetch('',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRFToken':csrfToken},body:`city=${encodeURIComponent(city)}&query=${encodeURIComponent(query)}&grid_size=${encodeURIComponent(accuracy)}`});const data=await resp.json();if(data&&Array.isArray(data.companies)){const companies=data.companies;const companyCount=data.company_count||companies.length;const items=companies.map(c=>{const emailBadge=c.email?`<span class='inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'>${c.email}</span>`:'';const website=c.website?`<a class='truncate text-brand-600 hover:underline dark:text-sky-400' target='_blank' href='${c.website}'>${c.website}</a>`:'<span class=\"text-slate-400\">—</span>';return `<div class='group rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/60 p-4 hover:shadow-md transition shadow-soft flex flex-col gap-3'><div class='flex items-start justify-between gap-3'><h3 class='font-semibold text-sm leading-snug text-slate-800 dark:text-slate-100 group-hover:text-brand-600 dark:group-hover:text-sky-400 line-clamp-2'>${c.name}</h3></div>${c.address?`<p class='text-xs text-slate-500 dark:text-slate-400 leading-snug line-clamp-2'>${c.address}</p>`:''}<div class='mt-auto flex flex-wrap items-center gap-2 text-xs'>${emailBadge}${c.phones?`<span class='px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300'>${c.phones}</span>`:''}</div><div class='pt-1 text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2'>${website}</div></div>`;}).join('');const accVal=parseInt(accuracy,10);resultDiv.innerHTML=`<div class='mb-5 flex flex-wrap items-center gap-4'><div class='text-sm text-slate-600 dark:text-slate-300'>Found <strong>${companyCount}</strong> companies for <span class='font-medium text-slate-900 dark:text-white'>${data.search_query||''}</span> (${accVal}x${accVal} km grid)</div></div><div class='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>${items||'<div class=\\"text-slate-600\\">No companies</div>'}</div>`;if(typeof data.accuracy==='number'){accuracyBadge.textContent=`Grid: ${Math.round(data.accuracy)} km`;accuracyBadge.classList.remove('hidden');}exportBtn.classList.remove('hidden');exportBtn.onclick=()=>{const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`results-${Date.now()}.json`;a.click();URL.revokeObjectURL(url);pushToast('Exported JSON','success')};pushToast('Search completed','success')}else if(data&&data.error){resultDiv.innerHTML=`<div class='rounded-lg border border-rose-300/60 bg-rose-50 text-rose-700 px-4 py-3 text-sm'>Error: ${data.error}</div>`;pushToast(data.error,'error')}else{resultDiv.innerHTML=`<div class='rounded-lg border border-rose-300/60 bg-rose-50 text-rose-700 px-4 py-3 text-sm'>Invalid response from server.</div>`;pushToast('Invalid server response','error')}}catch(err){resultDiv.innerHTML=`<div class='rounded-lg border border-rose-300/60 bg-rose-50 text-rose-700 px-4 py-3 text-sm'>Network error: ${err.message}</div>`;pushToast('Network error','error')}});
-    const searchPopup = document.createElement('div');
-    searchPopup.id = 'searchPopup';
-    searchPopup.style.position = 'fixed';
-    searchPopup.style.top = '10px';
-    searchPopup.style.right = '10px';
-    searchPopup.style.padding = '10px';
-    searchPopup.style.backgroundColor = '#f9f9f9';
-    searchPopup.style.border = '1px solid #ccc';
-    searchPopup.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
-    searchPopup.style.zIndex = '1000';
-    searchPopup.style.display = 'none';
-    searchPopup.innerHTML = '<strong>Search in progress:</strong> This may take a while. You can leave the page, and the search will continue in the background.';
-    document.body.appendChild(searchPopup);
-
-    function showSearchPopup() {
-        searchPopup.style.display = 'block';
-        setTimeout(() => {
-            searchPopup.style.display = 'none';
-        }, 10000); 
-    }
-
-    form.addEventListener('submit', (e) => {
-        showSearchPopup();
-    });
-</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js';"></script>
+<script src="{% static 'js/index.js' %}"></script>
 {% endblock %}

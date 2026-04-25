@@ -1,10 +1,12 @@
 from asyncio.log import logger
 from typing import Optional, List
 from pathlib import Path
+from django.contrib.auth import get_user_model
 
 from apps.web.mail_send import MailSend
 from apps.celery import celery_rabbit
-from apps.admin_app.models import User
+
+User = get_user_model()
 
 
 @celery_rabbit.task(name='apps.app.send_email_task', queue='rabbit_tasks', bind=True)

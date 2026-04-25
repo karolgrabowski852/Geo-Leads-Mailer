@@ -1,10 +1,13 @@
 from django.http import JsonResponse
-from apps.admin_app.models import SearchQuery, Company, User,\
+from django.contrib.auth import get_user_model
+from apps.admin_app.models import SearchQuery, Company,\
     CompanySerializer
-from apps.web.web_search import LocationQuery
+from apps.web.web_search import PolygonQuery
 from apps.config import logger, config
 import os
 import uuid
+
+User = get_user_model()
 
 
 def save_files(upload_files: list) -> list[str]:
@@ -26,10 +29,15 @@ def kilometers_to_geo_minutes(km: float) -> float:
     return max(0.25, min(minutes, 60.0))
 
 
-def google_search(city: str, query: str, grid_size_km: float, user: 'User') -> SearchQuery:
+def google_search(city: str, query: str, grid_size_km: float, user: 'User', polygon_coords: dict = None) -> SearchQuery:
     step_minutes = kilometers_to_geo_minutes(grid_size_km)
-    location_search = LocationQuery(location=city, language=user.language, country=user.country).set_query(query)
-    rectangles = location_search.generate_rectangles(step_minutes=step_minutes)
+    location_search = PolygonQuery(location=city, language=user.language, country=user.country).set_query(query)
+    
+    if polygon_coords:
+        rectangles = location_search.generate_rectangles(step_minutes=step_minutes, polygon_coords=polygon_coords)
+    else:
+        rectangles = location_search.generate_rectangles(step_minutes=step_minutes)
+        
     result = location_search.search(rectangles)
     search_query = SearchQuery.save_result(
         user=user,
@@ -73,5 +81,4 @@ def additional_user_access_to_search_query(current_user: 'User', search_query: S
             current_user.refresh_from_db()
     except Exception as e:
         logger.error(f"[SearchQuery attach] Error attaching user {current_user.id} to search_query {search_query.id}: {e}")
-
 

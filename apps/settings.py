@@ -19,20 +19,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-SECRET_KEY = config.django_secret_key
+# SECRET_KEY = config.django_secret_key
+SECRET_KEY = "test-secret-key"
 
 DEBUG = config.debug
 
-ALLOWED_HOSTS = [h.strip() for h in config.allowed_hosts.split(',') if h.strip()] or []
+# ALLOWED_HOSTS = [h.strip() for h in config.allowed_hosts.split(',') if h.strip()] or []
 
 
-CSRF_TRUSTED_ORIGINS = [o.strip() for o in config.csrf_trusted_origins.split(',') if o.strip()]
+# CSRF_TRUSTED_ORIGINS = [o.strip() for o in config.csrf_trusted_origins.split(',') if o.strip()]
 
 
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
 
-
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '0.0.0.0']
 
 # Application definition
 
@@ -51,7 +52,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
+    # "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -128,12 +129,18 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_ROOT = BASE_DIR / "uploads"
 MEDIA_URL = "/media/"
 
+GOOGLE_LOGIN_CLIENT_SECRETS_FILE = config.credentials_file
+LOGIN_URL = "/login"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/login"
+
 
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+AUTH_USER_MODEL = "admin_app.User"
 
 CELERY_RESULT_BACKEND = "rpc://"  
 CELERY_IGNORE_RESULT = False

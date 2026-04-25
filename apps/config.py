@@ -27,7 +27,7 @@ class Config(BaseSettings):
     django_settings_module: str
     debug: bool
     allowed_hosts: str
-    csrf_trusted_origins: str
+    # csrf_trusted_origins: str
 
 
     model_config = SettingsConfigDict(

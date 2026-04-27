@@ -24,14 +24,14 @@
                     <li class="flex items-start gap-2"><span class="h-5 w-5 rounded bg-brand-500 text-white flex items-center justify-center text-xs font-semibold">3</span><span>Pobierz wyniki</span></li>
                 </ul>
             </div>
-            
+
             <div class="flex-1">
                 <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-soft">
                     <h2 class="text-lg font-semibold mb-4">Wyszukiwanie obszarowe</h2>
                     <form id="searchForm" method="post" class="space-y-5">
                         {% csrf_token %}
                         <input type="hidden" id="polygon_coords" name="polygon_coords" value="">
-                        
+
                         <div>
                             <label for="query" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Czego szukasz?</label>
                             <input id="query" name="query" type="text" required placeholder="np. Restauracje, Fryzjerzy" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/60 focus:border-brand-500" />
@@ -49,6 +49,27 @@
                             <button type="button" id="resetBtn" class="text-sm text-slate-500 hover:text-slate-700">Wyczyść mapę</button>
                         </div>
                     </form>
+
+                    {% if search_error %}
+                    <div class="mt-4 rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20 px-4 py-3 text-sm text-rose-700 dark:text-rose-200">
+                        {{ search_error }}
+                    </div>
+                    {% endif %}
+
+                    {% if search_results %}
+                    <div class="mt-4 rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-900/20 px-4 py-3 text-sm text-brand-700 dark:text-brand-200">
+                        Wyszukiwanie dla zapytania "{{ search_query }}" zakonczone. Wyniki zostaly zwrocone poprawnie.
+                    </div>
+                    {% endif %}
+
+                    <section id="searchResultsPanel" class="hidden mt-6 border-t border-slate-200 dark:border-slate-700 pt-5">
+                        <div class="flex items-center justify-between gap-3 mb-3">
+                            <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Wyniki wyszukiwania</h3>
+                            <span id="resultsCount" class="text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200">0</span>
+                        </div>
+                        <p id="resultsMeta" class="text-xs text-slate-500 dark:text-slate-400 mb-4"></p>
+                        <div id="searchResultsList" class="space-y-3 max-h-[420px] overflow-auto pr-1"></div>
+                    </section>
                 </div>
             </div>
         </div>

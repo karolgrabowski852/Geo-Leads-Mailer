@@ -10,32 +10,53 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+from datetime import timedelta
 from pathlib import Path
-from .config import config
+
+import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
-# SECRET_KEY = config.django_secret_key
-SECRET_KEY = "test-secret-key"
-
-DEBUG = config.debug
-
-# ALLOWED_HOSTS = [h.strip() for h in config.allowed_hosts.split(',') if h.strip()] or []
+env = environ.Env(
+    DEBUG=(bool, False),
+    ALLOWED_HOSTS=(list, []),
+    CSRF_TRUSTED_ORIGINS=(list, []),
+)
+environ.Env.read_env(BASE_DIR / ".env")
 
 
-# CSRF_TRUSTED_ORIGINS = [o.strip() for o in config.csrf_trusted_origins.split(',') if o.strip()]
+
+DEBUG = env("DEBUG")
+
+if DEBUG:
+    SECRET_KEY = env("DJANGO_SECRET_KEY", default="") or "django-insecure-dev-key"
+    ALLOWED_HOSTS = env.list("ALLOWED_HOSTS") or ["127.0.0.1", "0.0.0.0"]
+else:
+    SECRET_KEY = env("DJANGO_SECRET_KEY")
+    ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
+
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS") or [
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://0.0.0.0",
+]
 
 
-# SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '0.0.0.0']
+COOKIE_SECURE = env.bool("COOKIE_SECURE", default=not DEBUG)
 
-# Application definition
+
+SESSION_COOKIE_SECURE = COOKIE_SECURE
+CSRF_COOKIE_SECURE = COOKIE_SECURE
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = False
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+X_FRAME_OPTIONS = "DENY"
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -44,6 +65,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
     "apps.admin_app",
     "apps.app",
 ]
@@ -52,7 +75,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
-    # "django.middleware.csrf.CsrfViewMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -78,22 +101,18 @@ TEMPLATES = [
 WSGI_APPLICATION = "apps.wsgi.application"
 
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config.postgres_db,
-        'USER': config.postgres_user,
-        'PASSWORD': config.postgres_password,
-        'HOST': config.postgres_host,
-        'PORT': config.postgres_port,
+        'NAME': env("POSTGRES_DB"),
+        'USER': env("POSTGRES_USER"),
+        'PASSWORD': env("POSTGRES_PASSWORD"),
+        'HOST': env("POSTGRES_HOST", default="db"),
+        'PORT': env("POSTGRES_PORT", default="5432"),
     }
 }
 
-# Password validation
-# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -111,8 +130,6 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# Internationalization
-# https://docs.djangoproject.com/en/5.2/topics/i18n/
 
 LANGUAGE_CODE = "en-us"
 
@@ -129,20 +146,75 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_ROOT = BASE_DIR / "uploads"
 MEDIA_URL = "/media/"
 
-GOOGLE_LOGIN_CLIENT_SECRETS_FILE = config.credentials_file
+EMAIL_ATTACHMENTS_DIR = env(
+    "EMAIL_ATTACHMENTS_DIR", default=str(MEDIA_ROOT / "email_attachments")
+)
+
+GOOGLE_LOCATION_API_KEY = env("GOOGLE_LOCATION_API_KEY")
+
+GOOGLE_LOGIN_CLIENT_SECRETS_FILE = env(
+    "CREDENTIALS_FILE", default=str(BASE_DIR / "settings" / "credentials.json")
+)
+
+GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
+GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET", default="")
+PUBLIC_BASE_URL = env("PUBLIC_BASE_URL", default="").rstrip("/")
+
 LOGIN_URL = "/login"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login"
 
+FIELD_ENCRYPTION_KEYS = env.list("FIELD_ENCRYPTION_KEYS", default=[])
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": env("REDIS_CACHE_URL", default="redis://redis:6379/1"),
+    }
+}
 
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
+
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "admin_app.User"
 
-CELERY_RESULT_BACKEND = "rpc://"  
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=10),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": False,
+    "CHECK_REVOKE_TOKEN": False,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": env("JWT_SIGNING_KEY", default="") or SECRET_KEY,
+    "ISSUER": "geoleadsmailer",
+    "LEEWAY": 10,
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+    "TOKEN_TYPE_CLAIM": "token_type",
+    "JTI_CLAIM": "jti",
+}
+
+AUTH_COOKIE = {
+    "ACCESS_NAME": "gl_access",
+    "REFRESH_NAME": "gl_refresh",
+    "LINK_NAME": "gl_link",
+    "PATH_ACCESS": "/",
+    "PATH_REFRESH": "/api/auth",
+    "DOMAIN": None,
+    "SECURE": COOKIE_SECURE,
+    "HTTPONLY": True,
+    "SAMESITE": "Lax",
+    "LINK_MAX_AGE": 600,
+}
+
+RABBITMQ_BROKER_URL = env("RABBITMQ_BROKER_URL")
+REDIS_BROKER_URL = env("REDIS_BROKER_URL")
+
+CELERY_RESULT_BACKEND = "rpc://"
 CELERY_IGNORE_RESULT = False
 CELERY_TASK_IGNORE_RESULT = False
 CELERY_RESULT_EXPIRES = 3600
@@ -151,4 +223,26 @@ CELERY_TASK_ALWAYS_EAGER = False
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
+
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "{levelname} {asctime} {name} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": env("DJANGO_LOG_LEVEL", default="INFO"),
+    },
+}
 

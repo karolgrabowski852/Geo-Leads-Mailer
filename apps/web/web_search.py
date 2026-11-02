@@ -1,10 +1,12 @@
+import logging
 from abc import ABC, abstractmethod
 from typing import Self
 
 import httpx
+from django.conf import settings
 from pydantic import BaseModel
 
-from apps.config import config, logger
+logger = logging.getLogger(__name__)
 
 
 class Point(BaseModel):
@@ -70,7 +72,7 @@ class PolygonQuery(Query):
         return inside
 
     def search(self) -> dict:
-        api_key = (config.google_location_api_key or "").strip()
+        api_key = (settings.GOOGLE_LOCATION_API_KEY or "").strip()
         if not api_key:
             raise ValueError(
                 "Brak klucza Google Places API. Ustaw GOOGLE_LOCATION_API_KEY."

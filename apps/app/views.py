@@ -1,4 +1,5 @@
 import json
+import logging
 from functools import wraps
 from pathlib import Path
 
@@ -18,12 +19,13 @@ from google_auth_oauthlib.flow import Flow
 
 from apps.admin_app.models import Company
 from apps.app.utils import save_files
-from apps.config import logger
 from apps.web.mail_send import SCOPES
 from apps.web.web_search import PolygonQuery
 
 from .forms import LoginForm, SendEmailForm
 from .tasks import send_bulk_emails
+
+logger = logging.getLogger(__name__)
 
 GOOGLE_LOGIN_SCOPES = [
     "openid",

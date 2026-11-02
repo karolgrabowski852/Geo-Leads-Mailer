@@ -1,18 +1,20 @@
+from django.conf import settings
 from django.http import JsonResponse
 from django.contrib.auth import get_user_model
 from apps.admin_app.models import SearchQuery, Company,\
     CompanySerializer
 from apps.web.web_search import PolygonQuery
-from apps.config import logger, config
+import logging
 import os
 import uuid
 
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
 def save_files(upload_files: list) -> list[str]:
     attachment_paths: list[str] = []
-    base_dir = config.email_attachments_dir
+    base_dir = settings.EMAIL_ATTACHMENTS_DIR
     batch_dir = os.path.join(base_dir, uuid.uuid4().hex)
     os.makedirs(batch_dir, exist_ok=True)
     for f in upload_files:

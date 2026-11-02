@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import List, Set
 from urllib.parse import urljoin, urlparse
@@ -7,7 +8,7 @@ from asgiref.sync import async_to_sync
 import urllib.robotparser as robotparser
 from collections import deque
 
-from apps.config import logger
+logger = logging.getLogger(__name__)
 
 # Heuristic keyword paths to prioritize/find likely contact pages
 KEYWORD_PATHS = [

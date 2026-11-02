@@ -2,9 +2,11 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from rest_framework import serializers
 from pathlib import Path
+import logging
 import uuid
 from django.core.exceptions import ValidationError
-from apps.config import logger
+
+logger = logging.getLogger(__name__)
 
 def save_file(instance, filename: str) -> str:
     path = Path(filename)

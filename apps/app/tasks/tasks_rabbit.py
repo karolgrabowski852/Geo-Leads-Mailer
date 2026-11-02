@@ -1,4 +1,4 @@
-from asyncio.log import logger
+import logging
 from typing import Optional, List
 from pathlib import Path
 from django.contrib.auth import get_user_model
@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from apps.web.mail_send import MailSend
 from apps.celery import celery_rabbit
 
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
 

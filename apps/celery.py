@@ -1,12 +1,13 @@
 import os
 from celery import Celery
-from .config import config
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", config.django_settings_module)
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "apps.settings")
+
+from django.conf import settings  # noqa: E402  (po ustawieniu DJANGO_SETTINGS_MODULE)
 
 celery_rabbit = Celery(
     'rabbit_tasks',
-    broker=config.rabbitmq_broker_url,
+    broker=settings.RABBITMQ_BROKER_URL,
     set_as_current=False,
     include=[
         'apps.app.tasks.tasks_rabbit',
@@ -20,7 +21,7 @@ celery_rabbit.conf.task_default_queue = 'rabbit_tasks'
 
 celery_redis = Celery(
     "redis_tasks",
-    broker=config.redis_broker_url,
+    broker=settings.REDIS_BROKER_URL,
     set_as_current=False,
     include=[
         'apps.app.tasks.tasks_redis',

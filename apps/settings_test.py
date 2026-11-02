@@ -1,3 +1,4 @@
+from datetime import timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -13,6 +14,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
     "apps.admin_app",
     "apps.app",
 ]
@@ -21,7 +24,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
-    # "django.middleware.csrf.CsrfViewMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -64,9 +67,79 @@ AUTH_USER_MODEL = "admin_app.User"
 GOOGLE_LOGIN_CLIENT_SECRETS_FILE = str(
     BASE_DIR / "settings" / "credentials.json"
 )
+GOOGLE_LOCATION_API_KEY = "test-key"
+
+GOOGLE_OAUTH_CLIENT_ID = "test-client-id.apps.googleusercontent.com"
+GOOGLE_OAUTH_CLIENT_SECRET = "test-client-secret"
+PUBLIC_BASE_URL = "https://testserver"
+
+# Staly klucz testowy - testy szyfrowania musza byc deterministyczne.
+FIELD_ENCRYPTION_KEYS = ["zbk1EjLZbDTQLQ1HDUNl_mnKmUqYRHfXvGzEMwL2vLo="]
+
+COOKIE_SECURE = False
+# Runner testow wymusza DEBUG=False, wiec checki produkcyjne trzeba wylaczyc jawnie.
+AUTH_CONFIG_STRICT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_HTTPONLY = False
+SESSION_COOKIE_HTTPONLY = True
+
+CACHES = {
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=10),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": False,
+    "CHECK_REVOKE_TOKEN": False,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": "test-jwt-signing-key",
+    "ISSUER": "geoleadsmailer",
+    "LEEWAY": 10,
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+    "TOKEN_TYPE_CLAIM": "token_type",
+    "JTI_CLAIM": "jti",
+}
+
+AUTH_COOKIE = {
+    "ACCESS_NAME": "gl_access",
+    "REFRESH_NAME": "gl_refresh",
+    "LINK_NAME": "gl_link",
+    "PATH_ACCESS": "/",
+    "PATH_REFRESH": "/api/auth",
+    "DOMAIN": None,
+    "SECURE": False,
+    "HTTPONLY": True,
+    "SAMESITE": "Lax",
+    "LINK_MAX_AGE": 600,
+}
+
+MEDIA_ROOT = BASE_DIR / "test-uploads"
+MEDIA_URL = "/media/"
+EMAIL_ATTACHMENTS_DIR = str(MEDIA_ROOT / "email_attachments")
+
+RABBITMQ_BROKER_URL = "memory://"
+REDIS_BROKER_URL = "memory://"
 
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "root": {"handlers": ["console"], "level": "WARNING"},
+}

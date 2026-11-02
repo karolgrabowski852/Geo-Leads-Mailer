@@ -5,9 +5,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "adrf>=0.1.14",
     "celery==5.3.6",
+    "cryptography>=44.0",
     "django>=5.2.4",
+    "django-environ>=0.12.0",
     "djangorestframework>=3.16.1",
+    "djangorestframework-simplejwt>=5.5.1",
     "google>=3.0.0",
     "google-api-python-client>=2.178.0",
     "google-auth-httplib2>=0.2.0",
@@ -15,7 +19,6 @@ dependencies = [
     "google-search-results>=2.4.2",
     "httpx>=0.28.1",
     "pydantic>=2.11.7",
-    "pydantic-settings>=2.10.1",
     "redis>=6.4.0",
     "gunicorn>=21.2.0",
     "psycopg[binary]>=3.2.3",

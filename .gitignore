@@ -7,3 +7,4 @@ settings/
 /static/
 .venv/
 .certbot/
+.github/copilot-instructions.md

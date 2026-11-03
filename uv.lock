@@ -398,6 +398,19 @@ wheels = [
 ]
 
 [[package]]
+name = "django-fernet-encrypted-fields"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/95/d7/df0426ebf5b1784d064825ec8e5940e634991452066cfacc7fe0138f091a/django_fernet_encrypted_fields-0.4.0.tar.gz", hash = "sha256:836c927a260a834a35c4caecf82a97a5e411408cbecb44e25caddd02d8cdd86e", size = 5505, upload-time = "2026-04-14T01:25:15.216Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/83/75/c6de2333c26d0052d2175bf21dc3f5c45e878090946a75fb0c827da6e40a/django_fernet_encrypted_fields-0.4.0-py3-none-any.whl", hash = "sha256:b3e4049882b8c7216d868b7aa7533e466a48c1307b5d4b1b8dc4cb5946d87eec", size = 5681, upload-time = "2026-04-14T01:25:13.309Z" },
+]
+
+[[package]]
 name = "djangorestframework"
 version = "3.16.1"
 source = { registry = "https://pypi.org/simple" }
@@ -433,6 +446,7 @@ dependencies = [
     { name = "cryptography" },
     { name = "django" },
     { name = "django-environ" },
+    { name = "django-fernet-encrypted-fields" },
     { name = "djangorestframework" },
     { name = "djangorestframework-simplejwt" },
     { name = "google" },
@@ -454,6 +468,7 @@ requires-dist = [
     { name = "cryptography", specifier = ">=44.0" },
     { name = "django", specifier = ">=5.2.4" },
     { name = "django-environ", specifier = ">=0.12.0" },
+    { name = "django-fernet-encrypted-fields", specifier = "==0.4.0" },
     { name = "djangorestframework", specifier = ">=3.16.1" },
     { name = "djangorestframework-simplejwt", specifier = ">=5.5.1" },
     { name = "google", specifier = ">=3.0.0" },

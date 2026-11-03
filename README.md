@@ -8,7 +8,7 @@ GeoLeads Mailer is a Django application for finding businesses in a drawn map ar
 - **apps/web/**: Modules responsible for email processing, website crawling, and Overpass searches.
 - **uploads/**: Temporary email attachments shared with background workers.
 
-The application code is consolidated under `apps/app/`. Its Django model label remains `admin_app` to preserve existing database tables, authentication references, and migration history.
+The application code is consolidated under `apps/app/`. Its Django model label is `admin_app`, which is used by the configured user model and migrations.
 
 ## Requirements
 - Python 3.10+
@@ -27,12 +27,10 @@ authorized redirect URIs: `/login/oauth/callback` and `/oauth/callback` on the
 public application origin. Users sign in with Google and separately authorize
 Gmail sending; they do not upload OAuth credential files.
 
-Gmail refresh tokens are encrypted in PostgreSQL with `FIELD_ENCRYPTION_KEYS`.
-Set this key outside the database before applying migrations, and keep a
-protected backup so existing tokens remain readable. The migration from the
-file-based OAuth fields copies tokens into the encrypted column and deletes
-the old per-user token and credentials files after the database transaction
-commits.
+Gmail refresh tokens are encrypted in PostgreSQL with
+[`django-fernet-encrypted-fields`](https://pypi.org/project/django-fernet-encrypted-fields/).
+Set `FIELD_ENCRYPTION_SALT_KEYS` and `DJANGO_SECRET_KEY` outside the database
+and keep them stable so stored tokens remain readable.
 
 ## Application Flow
 

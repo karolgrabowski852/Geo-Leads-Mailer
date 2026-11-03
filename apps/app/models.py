@@ -2,19 +2,7 @@ from django.db import models, transaction
 from django.db.models import Q
 from django.contrib.auth.models import AbstractUser
 from rest_framework import serializers
-from pathlib import Path
-import uuid
-from django.core.exceptions import ValidationError
-from apps.app.fields import EncryptedTextField
-
-
-def save_file(instance, filename: str) -> str:
-    path = Path(filename)
-    if path.suffix.lower() != '.json':
-        raise ValidationError("Only JSON files are allowed (.json)")
-    name = uuid.uuid4().hex
-    enddir = 'token' if filename.startswith('token') else 'credentials'
-    return f"uploads/{enddir}/{name}.json"
+from apps.app.fields import StrictEncryptedTextField
 
 
 class User(AbstractUser):
@@ -25,7 +13,7 @@ class User(AbstractUser):
         'SearchQuery',
         related_name='user_queries',
         blank=True)
-    token = EncryptedTextField(blank=True, null=True)
+    token = StrictEncryptedTextField(blank=True, null=True)
 
     def __str__(self):
         return self.username

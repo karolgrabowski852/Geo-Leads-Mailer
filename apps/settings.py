@@ -153,7 +153,6 @@ _OVERPASS_API_DE_ENDPOINT = "https://overpass-api.de/api/interpreter"
 _OVERPASS_FR_ENDPOINT = "https://overpass.openstreetmap.fr/api/interpreter"
 _OVERPASS_PRIVATE_ENDPOINT = "https://overpass.private.coffee/api/interpreter"
 OVERPASS_API_URL = env("OVERPASS_API_URL", default=_OVERPASS_API_DE_ENDPOINT)
-OVERPASS_API_FALLBACK_URL = env("OVERPASS_API_FALLBACK_URL", default="")
 OVERPASS_API_FALLBACK_URLS = env.list(
     "OVERPASS_API_FALLBACK_URLS",
     default=[_OVERPASS_FR_ENDPOINT, _OVERPASS_PRIVATE_ENDPOINT],
@@ -171,7 +170,7 @@ LOGIN_URL = "/login"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login"
 
-FIELD_ENCRYPTION_KEYS = env.list("FIELD_ENCRYPTION_KEYS", default=[])
+SALT_KEY = env.list("FIELD_ENCRYPTION_SALT_KEYS", default=[])
 
 CACHES = {
     "default": {

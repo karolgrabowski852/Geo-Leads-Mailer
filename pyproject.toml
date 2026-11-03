@@ -22,4 +22,5 @@ dependencies = [
     "redis>=6.4.0",
     "gunicorn>=21.2.0",
     "psycopg[binary]>=3.2.3",
+    "django-fernet-encrypted-fields==0.4.0",
 ]

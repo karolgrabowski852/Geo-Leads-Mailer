@@ -64,7 +64,6 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "admin_app.User"
 OVERPASS_API_URL = "https://overpass-api.de/api/interpreter"
-OVERPASS_API_FALLBACK_URL = ""
 OVERPASS_API_FALLBACK_URLS: list[str] = []
 OVERPASS_USER_AGENT = "GeoLeadsMailer-test/1.0"
 
@@ -73,7 +72,7 @@ GOOGLE_OAUTH_CLIENT_SECRET = "test-client-secret"
 PUBLIC_BASE_URL = "https://testserver"
 
 # Staly klucz testowy - testy szyfrowania musza byc deterministyczne.
-FIELD_ENCRYPTION_KEYS = ["zbk1EjLZbDTQLQ1HDUNl_mnKmUqYRHfXvGzEMwL2vLo="]
+SALT_KEY = ["test-field-encryption-salt"]
 
 COOKIE_SECURE = False
 # Runner testow wymusza DEBUG=False, wiec checki produkcyjne trzeba wylaczyc jawnie.

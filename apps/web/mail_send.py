@@ -1,4 +1,4 @@
-import os.path
+import os
 import base64
 import logging
 from email.mime.text import MIMEText
@@ -6,16 +6,12 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 
-from django.core.files.base import ContentFile
 from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from django.contrib.auth import get_user_model
-from django.core.files.base import ContentFile
-from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 
-import uuid
+from apps.web.google_oauth import credentials_from_json, credentials_to_json
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +32,11 @@ class MailSend:
     else:
       self.user = User.objects.get(username=user_or_username)
     self.creds = None
-    if self.user.token and self.user.token.name and os.path.exists(self.user.token.path):
+    if self.user.token:
       try:
-        self.creds = Credentials.from_authorized_user_file(self.user.token.path, SCOPES)
-      except Exception as e:
-        logger.warning(f"Failed to load token file {self.user.token.path}: {e}")
+        self.creds = credentials_from_json(self.user.token, SCOPES)
+      except (ImproperlyConfigured, KeyError, TypeError, ValueError) as e:
+        logger.warning("Failed to load Gmail OAuth token for user %s: %s", self.user.pk, e)
 
     if self.creds and self.creds.expired and self.creds.refresh_token:
       try:
@@ -58,18 +54,8 @@ class MailSend:
   def _save_token(self):
     if not self.creds:
       return
-    token_json = self.creds.to_json()
-    old_name = self.user.token.name if self.user.token and self.user.token.name else None
-    filename = f"token_{uuid.uuid4().hex}.json"
-    self.user.token.save(filename, ContentFile(token_json), save=True)
-
-    if old_name and old_name != self.user.token.name:
-      try:
-        old_path = os.path.join(settings.MEDIA_ROOT, old_name)
-        if os.path.exists(old_path):
-          os.remove(old_path)
-      except OSError:
-        logger.warning(f"Failed to remove old token file {old_name}. It may not exist or is in use.")
+    self.user.token = credentials_to_json(self.creds)
+    self.user.save(update_fields=["token"])
 
 
   def create_message(self, sender: str, to: str, subject: str, message_text: str, attachments: list = None) -> dict:
@@ -110,5 +96,4 @@ class MailSend:
     ).execute()
 
     return {"status": "200", "message": "Email sent successfully."}
-
 

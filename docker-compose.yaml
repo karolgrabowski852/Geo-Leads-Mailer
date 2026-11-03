@@ -32,7 +32,7 @@ services:
   uploads_init:
     image: python:3.12-slim-bookworm
     user: "0:0"
-    command: bash -lc "mkdir -p /app/uploads/credentials /app/uploads/token && chown -R 10001:10001 /app/uploads"
+    command: bash -lc "mkdir -p /app/uploads && chown -R 10001:10001 /app/uploads"
     volumes:
       - uploads_data:/app/uploads
     restart: "no"
@@ -51,7 +51,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    command: bash -lc "uv run manage.py migrate --noinput && uv run manage.py collectstatic --noinput && uv run gunicorn apps.wsgi:application -b 0.0.0.0:8000 --workers 3 --threads 2 --timeout 120"
+    command: bash -lc "uv run --no-sync manage.py migrate --noinput && uv run --no-sync manage.py collectstatic --noinput && uv run --no-sync gunicorn apps.wsgi:application -b 0.0.0.0:8000 --workers 3 --threads 2 --timeout 120"
     env_file:
       - .env
     restart: unless-stopped
@@ -78,7 +78,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: bash -lc "uv run celery -A apps.celery:celery_rabbit worker -Q rabbit_tasks -n rabbit@%h -l info"
+    command: bash -lc "uv run --no-sync celery -A apps.celery:celery_rabbit worker -Q rabbit_tasks -n rabbit@%h -l info"
     env_file:
       - .env
     restart: unless-stopped
@@ -99,7 +99,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: bash -lc "uv run celery -A apps.celery:celery_redis worker -Q redis_tasks -n redis@%h -l info"
+    command: bash -lc "uv run --no-sync celery -A apps.celery:celery_redis worker -Q redis_tasks -n redis@%h -l info"
     env_file:
       - .env
     restart: unless-stopped
@@ -120,5 +120,3 @@ volumes:
   pgdata:
   uploads_data:
   staticfiles_data:
-
-

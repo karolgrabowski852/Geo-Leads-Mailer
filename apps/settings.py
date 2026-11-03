@@ -55,7 +55,7 @@ CSRF_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
 SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_REFERRER_POLICY = "same-origin"
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 X_FRAME_OPTIONS = "DENY"
 
 INSTALLED_APPS = [
@@ -67,8 +67,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
-    "apps.admin_app",
-    "apps.app",
+    "apps.app.apps.AppConfig",
 ]
 
 MIDDLEWARE = [
@@ -150,10 +149,18 @@ EMAIL_ATTACHMENTS_DIR = env(
     "EMAIL_ATTACHMENTS_DIR", default=str(MEDIA_ROOT / "email_attachments")
 )
 
-GOOGLE_LOCATION_API_KEY = env("GOOGLE_LOCATION_API_KEY")
-
-GOOGLE_LOGIN_CLIENT_SECRETS_FILE = env(
-    "CREDENTIALS_FILE", default=str(BASE_DIR / "settings" / "credentials.json")
+_OVERPASS_API_DE_ENDPOINT = "https://overpass-api.de/api/interpreter"
+_OVERPASS_FR_ENDPOINT = "https://overpass.openstreetmap.fr/api/interpreter"
+_OVERPASS_PRIVATE_ENDPOINT = "https://overpass.private.coffee/api/interpreter"
+OVERPASS_API_URL = env("OVERPASS_API_URL", default=_OVERPASS_API_DE_ENDPOINT)
+OVERPASS_API_FALLBACK_URL = env("OVERPASS_API_FALLBACK_URL", default="")
+OVERPASS_API_FALLBACK_URLS = env.list(
+    "OVERPASS_API_FALLBACK_URLS",
+    default=[_OVERPASS_FR_ENDPOINT, _OVERPASS_PRIVATE_ENDPOINT],
+)
+OVERPASS_USER_AGENT = env(
+    "OVERPASS_USER_AGENT",
+    default="GeoLeadsMailer/1.0",
 )
 
 GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
@@ -245,4 +252,3 @@ LOGGING = {
         "level": env("DJANGO_LOG_LEVEL", default="INFO"),
     },
 }
-

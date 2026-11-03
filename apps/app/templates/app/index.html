@@ -17,10 +17,10 @@
         <div class="relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/60 backdrop-blur p-10 flex flex-col lg:flex-row gap-10 shadow-soft">
             <div class="flex-1 min-w-[260px]">
                 <h1 class="text-3xl font-bold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-brand-600 to-sky-500">Polygon Search</h1>
-                <p class="text-slate-600 dark:text-slate-300 leading-relaxed mb-6">Zdefiniuj obszar poszukiwań rysując poligon na mapie i znajdź firmy za pomocą Google Places API.</p>
+                <p class="text-slate-600 dark:text-slate-300 leading-relaxed mb-6">Zdefiniuj obszar poszukiwań na mapie i znajdź firmy na podstawie danych OpenStreetMap.</p>
                 <ul class="grid gap-3 text-sm text-slate-600 dark:text-slate-400 mb-6">
                     <li class="flex items-start gap-2"><span class="h-5 w-5 rounded bg-brand-500 text-white flex items-center justify-center text-xs font-semibold">1</span><span>Narysuj obszar na mapie</span></li>
-                    <li class="flex items-start gap-2"><span class="h-5 w-5 rounded bg-brand-500 text-white flex items-center justify-center text-xs font-semibold">2</span><span>Wpisz czego szukasz (Query)</span></li>
+                    <li class="flex items-start gap-2"><span class="h-5 w-5 rounded bg-brand-500 text-white flex items-center justify-center text-xs font-semibold">2</span><span>Wybierz kategorię firmy</span></li>
                     <li class="flex items-start gap-2"><span class="h-5 w-5 rounded bg-brand-500 text-white flex items-center justify-center text-xs font-semibold">3</span><span>Pobierz wyniki</span></li>
                 </ul>
             </div>
@@ -28,25 +28,38 @@
             <div class="flex-1">
                 <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-soft">
                     <h2 class="text-lg font-semibold mb-4">Wyszukiwanie obszarowe</h2>
-                    <form id="searchForm" method="post" class="space-y-5">
+                    <form id="searchForm" method="post" class="space-y-5" aria-busy="false">
                         {% csrf_token %}
                         <input type="hidden" id="polygon_coords" name="polygon_coords" value="">
 
                         <div>
-                            <label for="query" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Czego szukasz?</label>
-                            <input id="query" name="query" type="text" required placeholder="np. Restauracje, Fryzjerzy" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/60 focus:border-brand-500" />
+                            <label for="category" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Kategoria firmy</label>
+                            <select id="category" name="category" required class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/60 focus:border-brand-500">
+                                <option value="" selected disabled>Wybierz kategorię</option>
+                                {% for value, label in categories %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                                <option value="custom">Własna kategoria</option>
+                            </select>
+                            <input id="customCategory" name="custom_category" type="text" maxlength="100" placeholder="np. software house, drukarnie" class="hidden mt-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/60 focus:border-brand-500" />
+                            <p id="categoryHelp" class="mt-2 text-xs text-slate-500 dark:text-slate-400">Własne frazy są dopasowywane do znanych kategorii lub wyszukiwane tekstowo po nazwie.</p>
                         </div>
 
                         <div>
                             <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Obszar wyszukiwania</label>
                             <div id="map" class="h-80 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700"></div>
+                            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="underline">OpenStreetMap contributors</a>. Dane udostępniane na licencji ODbL.</p>
                         </div>
 
                         <div class="flex items-center gap-4 pt-2">
-                            <button type="submit" id="submitBtn" class="inline-flex items-center gap-2 rounded-md bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 text-sm font-medium shadow-soft">
-                                <span>Uruchom wyszukiwanie</span>
+                            <button type="submit" id="submitBtn" aria-controls="searchProgress" class="inline-flex items-center gap-2 rounded-md bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 text-sm font-medium shadow-soft">
+                                <span id="submitBtnText">Uruchom wyszukiwanie</span>
                             </button>
                             <button type="button" id="resetBtn" class="text-sm text-slate-500 hover:text-slate-700">Wyczyść mapę</button>
+                        </div>
+                        <div id="searchProgress" class="hidden rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 px-4 py-3 text-sm text-sky-700 dark:text-sky-200" role="status" aria-live="polite" aria-atomic="true">
+                            <span class="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent align-middle" aria-hidden="true"></span>
+                            <span id="searchProgressMessage">Wyszukiwanie trwa. Pobieranie danych OpenStreetMap może chwilę potrwać.</span>
                         </div>
                     </form>
 

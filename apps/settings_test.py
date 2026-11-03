@@ -16,8 +16,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
-    "apps.admin_app",
-    "apps.app",
+    "apps.app.apps.AppConfig",
 ]
 
 MIDDLEWARE = [
@@ -64,10 +63,10 @@ USE_TZ = True
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "admin_app.User"
-GOOGLE_LOGIN_CLIENT_SECRETS_FILE = str(
-    BASE_DIR / "settings" / "credentials.json"
-)
-GOOGLE_LOCATION_API_KEY = "test-key"
+OVERPASS_API_URL = "https://overpass-api.de/api/interpreter"
+OVERPASS_API_FALLBACK_URL = ""
+OVERPASS_API_FALLBACK_URLS: list[str] = []
+OVERPASS_USER_AGENT = "GeoLeadsMailer-test/1.0"
 
 GOOGLE_OAUTH_CLIENT_ID = "test-client-id.apps.googleusercontent.com"
 GOOGLE_OAUTH_CLIENT_SECRET = "test-client-secret"
@@ -85,6 +84,7 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_HTTPONLY = False
 SESSION_COOKIE_HTTPONLY = True
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 
 CACHES = {
     "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}

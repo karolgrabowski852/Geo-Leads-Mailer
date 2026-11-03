@@ -1,10 +1,20 @@
 from django import forms
 
+from apps.web.web_search import CATEGORY_CHOICES
 
 class SearchForm(forms.Form):
-	city = forms.CharField(max_length=255)
-	query = forms.CharField(max_length=255)
-	grid_size = forms.IntegerField(min_value=1, max_value=50, initial=10)
+	category = forms.ChoiceField(choices=CATEGORY_CHOICES)
+	custom_category = forms.CharField(max_length=100, required=False)
+	polygon_coords = forms.CharField(max_length=16000)
+
+	def clean(self):
+		cleaned_data = super().clean()
+		if (
+			cleaned_data.get("category") == "custom"
+			and not cleaned_data.get("custom_category", "").strip()
+		):
+			self.add_error("custom_category", "Wpisz własną kategorię.")
+		return cleaned_data
 
 
 class SendEmailForm(forms.Form):
@@ -31,5 +41,3 @@ class RegisterForm(forms.Form):
 	password = forms.CharField(widget=forms.PasswordInput, min_length=6)
 	language = forms.CharField(max_length=8, initial='pl')
 	country = forms.CharField(max_length=8, initial='PL')
-	credentials = forms.FileField()
-

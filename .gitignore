@@ -4,6 +4,6 @@ credentials.json
 token.json
 uploads/
 settings/
-static/
+/static/
 .venv/
 .certbot/

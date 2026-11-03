@@ -2,6 +2,96 @@
 {% load static %} {% block title %}Send email — Email Bot{% endblock %}
 
 {% block content %}
+<div class="max-w-5xl mx-auto">
+  <section class="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/60 backdrop-blur p-6 sm:p-10 shadow-soft">
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold tracking-tight mb-3">Wysyłka e-maili</h1>
+      <p class="text-sm text-slate-600 dark:text-slate-300">
+        Wybierz zapisane wyszukiwanie i adresy firm. Wiadomości zostaną dodane do kolejki wysyłki.
+      </p>
+      <a href="{% url 'oauth_start' %}" class="mt-3 inline-flex text-sm font-medium text-brand-600 dark:text-sky-400 hover:underline">
+        Połącz konto Gmail
+      </a>
+    </div>
+
+    <form id="sendEmailForm" method="post" enctype="multipart/form-data" class="space-y-7">
+      {% csrf_token %}
+
+      <section class="grid gap-5 md:grid-cols-3">
+        <div>
+          <label for="location" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Zapisana lokalizacja</label>
+          <select id="location" name="location" required class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2.5 text-sm">
+            <option value="" selected disabled>Wybierz lokalizację</option>
+            {% for location in locations %}
+            <option value="{{ location }}">{{ location }}</option>
+            {% empty %}
+            <option value="" disabled>Brak zapisanych wyszukiwań</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <label for="query" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Zapytania</label>
+            <button type="button" id="selectAllQueries" class="text-xs text-brand-600 dark:text-sky-400 hover:underline">Wybierz wszystkie</button>
+          </div>
+          <select id="query" name="query" multiple size="5" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2 text-sm" aria-describedby="queryHelp"></select>
+          <p id="queryHelp" class="mt-1 text-xs text-slate-500 dark:text-slate-400">Możesz wybrać kilka zapytań.</p>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <label for="reciver" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Adresy z bazy</label>
+            <button type="button" id="selectAllCompanies" class="text-xs text-brand-600 dark:text-sky-400 hover:underline">Wybierz wszystkie</button>
+          </div>
+          <select id="reciver" name="reciver" multiple size="5" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2 text-sm" aria-describedby="recipientHelp"></select>
+          <p id="recipientHelp" class="mt-1 text-xs text-slate-500 dark:text-slate-400">Adresy e-mail firm z wybranych wyników.</p>
+        </div>
+      </section>
+
+      <div>
+        <label for="customEmails" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Dodatkowe adresy (opcjonalnie)</label>
+        <textarea id="customEmails" rows="2" placeholder="adres@example.com, kolejny@example.com" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2.5 text-sm"></textarea>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Poprawne: <span id="customEmailsValid">0</span> · niepoprawne: <span id="customEmailsInvalid">0</span></p>
+        <div id="customEmailsChips" class="mt-2 flex flex-wrap gap-1"></div>
+      </div>
+
+      <div class="grid gap-5 md:grid-cols-2">
+        <div>
+          <label for="subject" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Temat</label>
+          <input id="subject" name="subject" type="text" maxlength="255" required class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2.5 text-sm" />
+        </div>
+        <div>
+          <label for="delay_min" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Odstęp między wiadomościami (minuty)</label>
+          <input id="delay_min" name="delay_min" type="number" min="0" value="1" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2.5 text-sm" />
+        </div>
+      </div>
+
+      <div>
+        <label for="text" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Treść wiadomości</label>
+        <textarea id="text" name="text" rows="8" required class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2.5 text-sm"></textarea>
+      </div>
+
+      <div id="dropZone" class="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 p-5">
+        <label for="attachments" class="block text-sm font-medium mb-2">Załączniki (opcjonalnie)</label>
+        <input id="attachments" name="attachments" type="file" multiple class="block w-full text-sm text-slate-600 dark:text-slate-300" />
+        <ul id="fileList" class="mt-3 space-y-1 text-xs"></ul>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 dark:border-slate-700 pt-5">
+        <div class="text-xs text-slate-500 dark:text-slate-400">
+          Zapytania: <span id="summaryQueries">0</span> · adresy: <span id="summaryCompanies">0</span> · załączniki: <span id="summaryFiles">0</span>
+        </div>
+        <div class="flex gap-3">
+          <button type="button" id="clearBtn" class="rounded-md border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm">Wyczyść</button>
+          <button type="submit" id="submitBtn" class="rounded-md bg-brand-600 hover:bg-brand-700 text-white px-5 py-2 text-sm font-medium">
+            <span>Dodaj do kolejki</span>
+          </button>
+        </div>
+      </div>
+    </form>
+  </section>
+</div>
 {% endblock %}
 
 {% block scripts %}

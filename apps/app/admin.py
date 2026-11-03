@@ -33,14 +33,12 @@ class UserForm(forms.ModelForm):
         model = User
         fields = (
             'username', 'email', 'password', 'language', 'country',
-            'results', 'credentials', 'token', 'is_active', 'is_staff',
+            'results', 'is_active', 'is_staff',
             'is_superuser', 'groups', 'user_permissions',
         )
         widgets = {
             'password': forms.PasswordInput(),
             'results': forms.CheckboxSelectMultiple(),
-            'credentials': forms.FileInput(),
-            'token': forms.FileInput(),
         }
 
 @admin.register(User)
@@ -48,32 +46,45 @@ class UserAdmin(DjangoUserAdmin):
     form = UserForm
     list_display = (
         'username', 'email', 'language', 'country', 'is_staff',
-        'is_superuser', 'results_count', 'has_credentials', 'token',
+        'is_superuser', 'results_count', 'has_gmail_authorization',
     )
     search_fields = ('username', 'email')
     filter_horizontal = ('results', 'groups', 'user_permissions')
 
     fieldsets = DjangoUserAdmin.fieldsets + (
-        ('Geo Leads', {'fields': ('language', 'country', 'results', 'credentials', 'token')}),
+        ('Geo Leads', {'fields': ('language', 'country', 'results')}),
+        ('Gmail', {'fields': ('has_gmail_authorization',)}),
     )
 
     add_fieldsets = DjangoUserAdmin.add_fieldsets + (
-        ('Geo Leads', {'fields': ('language', 'country', 'results', 'credentials', 'token')}),
+        ('Geo Leads', {'fields': ('language', 'country', 'results')}),
     )
+
+    readonly_fields = ('has_gmail_authorization',)
 
     def results_count(self, obj):
         return obj.results.count()
 
-    def has_credentials(self, obj):
-        return True if obj.credentials else False
+    def has_gmail_authorization(self, obj):
+        return bool(obj.token)
+    has_gmail_authorization.boolean = True
+    has_gmail_authorization.short_description = 'Gmail authorized'
 
 
 @admin.register(Company)
 class CompanyAdmin(admin.ModelAdmin):
-    list_display = ('name', 'website', 'email', 'phones', 'get_queries')
+    list_display = (
+        'name',
+        'source',
+        'osm_type',
+        'osm_id',
+        'website',
+        'email',
+        'osm_email',
+        'email_crawl_status',
+        'get_queries',
+    )
 
     def get_queries(self, obj):
         return ", ".join([q.query for q in obj.search_queries.all()])
     get_queries.short_description = 'Queries'
-
-

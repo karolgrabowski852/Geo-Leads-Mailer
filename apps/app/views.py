@@ -1,28 +1,41 @@
 import json
 import logging
+import math
 from functools import wraps
-from pathlib import Path
 
 import requests
+from google.auth.exceptions import GoogleAuthError
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth import login as django_login
 from django.contrib.auth import logout as django_logout
-from django.core.files.base import ContentFile
+from django.core.exceptions import ValidationError
+from django.core.validators import EmailValidator
 from django.http import JsonResponse
+from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET
 from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
 
-from apps.admin_app.models import Company
+from apps.app.models import Company, SearchQuery
 from apps.app.utils import save_files
 from apps.web.mail_send import SCOPES
-from apps.web.web_search import PolygonQuery
+from apps.web.email_validation import extract_valid_emails
+from apps.web.google_oauth import (
+    create_google_oauth_flow,
+    credentials_from_json,
+    credentials_to_json,
+    is_google_oauth_configured,
+)
+from apps.web.web_search import (
+    CATEGORY_CHOICES,
+    OverpassAPIError,
+    PolygonQuery,
+    resolve_category,
+)
 
-from .forms import LoginForm, SendEmailForm
+from .forms import LoginForm, SearchForm, SendEmailForm
 from .tasks import send_bulk_emails
 
 logger = logging.getLogger(__name__)
@@ -34,11 +47,18 @@ GOOGLE_LOGIN_SCOPES = [
 ]
 
 
-def _resolve_google_login_credentials_path() -> Path:
-    raw_path = Path(settings.GOOGLE_LOGIN_CLIENT_SECRETS_FILE)
-    if not raw_path.is_absolute():
-        raw_path = Path(settings.BASE_DIR) / raw_path
-    return raw_path
+def _google_oauth_configuration_error(request, template_name):
+    return render(
+        request,
+        template_name,
+        {
+            "error": (
+                "Google OAuth is not configured. Set GOOGLE_OAUTH_CLIENT_ID "
+                "and GOOGLE_OAUTH_CLIENT_SECRET on the server."
+            )
+        },
+        status=503,
+    )
 
 
 def _validate_polygon_coords(raw_polygon):
@@ -57,7 +77,14 @@ def _validate_polygon_coords(raw_polygon):
             raise ValueError("Każdy punkt musi zawierać `lat` i `lng`.")
         lat = float(point["lat"])
         lng = float(point["lng"])
-        if lat < -90 or lat > 90 or lng < -180 or lng > 180:
+        if (
+            not math.isfinite(lat)
+            or not math.isfinite(lng)
+            or lat < -90
+            or lat > 90
+            or lng < -180
+            or lng > 180
+        ):
             raise ValueError("Współrzędne poligonu są poza zakresem.")
         normalized.append({"lat": lat, "lng": lng})
     return normalized
@@ -96,6 +123,10 @@ def session_login_required_json(view_func):
 def index(request):
     user = _get_current_user(request)
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    context = {
+        "current_user": user,
+        "categories": CATEGORY_CHOICES[:-1],
+    }
 
     def _error_response(message, status_code=400):
         if is_ajax:
@@ -103,7 +134,7 @@ def index(request):
         return render(
             request,
             "app/index.html",
-            {"current_user": user, "search_error": message},
+            {**context, "search_error": message},
             status=status_code,
         )
 
@@ -111,14 +142,19 @@ def index(request):
         if not user and not request.user.is_authenticated:
             return _error_response("Login required", status_code=401)
 
-        query_text = request.POST.get("query")
-        polygon_coords_str = request.POST.get("polygon_coords")
-
-        if not query_text or not polygon_coords_str:
-            return _error_response("Słowo kluczowe i obszar są wymagane")
+        form = SearchForm(request.POST)
+        if not form.is_valid():
+            error = next(iter(form.errors.values()), ["Niepoprawne dane wyszukiwania."])
+            return _error_response(str(error[0]))
 
         try:
-            polygon_coords = _validate_polygon_coords(json.loads(polygon_coords_str))
+            polygon_coords = _validate_polygon_coords(
+                json.loads(form.cleaned_data["polygon_coords"])
+            )
+            category = resolve_category(
+                form.cleaned_data["category"],
+                form.cleaned_data["custom_category"],
+            )
             language = getattr(user, "language", None) or "pl"
             country = getattr(user, "country", None) or "PL"
             searcher = PolygonQuery(
@@ -126,9 +162,34 @@ def index(request):
                 language=language,
                 country=country,
             )
-            searcher.set_query(query_text)
-
+            searcher.set_category(category)
             results = searcher.search()
+            results["polygon_coords"] = polygon_coords
+            search_query = SearchQuery.save_result(
+                user=user,
+                location=searcher.location_key,
+                query=category.label,
+                accuracy=0,
+                result=results,
+            )
+
+            queue_failures = 0
+            for company in search_query.companies.filter(website__isnull=False):
+                try:
+                    company.save_mail()
+                except Exception:
+                    queue_failures += 1
+                    logger.exception(
+                        "Could not queue email extraction for company %s",
+                        company.pk,
+                    )
+            if queue_failures:
+                results["search_warning"] = (
+                    "Wyniki zapisano, ale nie udało się dodać do kolejki "
+                    "ekstrakcji adresów e-mail dla części stron."
+                )
+            results["search_label"] = category.label
+
             if is_ajax:
                 return JsonResponse(results, status=200)
 
@@ -136,22 +197,28 @@ def index(request):
                 request,
                 "app/index.html",
                 {
-                    "current_user": user,
+                    **context,
                     "search_results": results,
-                    "search_query": query_text,
+                    "search_query": category.label,
                 },
                 status=200,
             )
 
         except json.JSONDecodeError:
             return _error_response("Błędny format współrzędnych")
+        except OverpassAPIError as e:
+            logger.warning("Overpass search failed: %s", e)
+            return _error_response(str(e), status_code=503)
         except ValueError as e:
             return _error_response(str(e))
         except Exception as e:
-            logger.error(f"Search error: {e}")
-            return _error_response(str(e), status_code=500)
+            logger.exception("Search or result persistence failed")
+            return _error_response(
+                "Nie udało się zapisać wyników wyszukiwania. Spróbuj ponownie.",
+                status_code=500,
+            )
 
-    return render(request, "app/index.html", {"current_user": user})
+    return render(request, "app/index.html", context)
 
 
 def send_email(request):
@@ -165,9 +232,32 @@ def send_email(request):
     if request.method == "POST":
         form = SendEmailForm(request.POST, request.FILES)
         if form.is_valid():
-            recipients = request.POST.getlist("recipients[]") or request.POST.getlist(
-                "reciver"
-            )
+            raw_recipients = request.POST.getlist(
+                "recipients[]"
+            ) or request.POST.getlist("reciver")
+            email_validator = EmailValidator()
+            recipients = []
+            seen_recipients = set()
+            for raw_recipient in raw_recipients:
+                recipient = raw_recipient.strip()
+                if not recipient:
+                    continue
+                try:
+                    email_validator(recipient)
+                except ValidationError:
+                    return JsonResponse(
+                        {"error": f"Invalid email address: {recipient}"},
+                        status=400,
+                    )
+                normalized = recipient.casefold()
+                if normalized not in seen_recipients:
+                    recipients.append(recipient)
+                    seen_recipients.add(normalized)
+            if not recipients:
+                return JsonResponse(
+                    {"error": "Select at least one valid email address."},
+                    status=400,
+                )
             subject = form.cleaned_data["subject"]
             text = form.cleaned_data["text"]
             delay_min = form.cleaned_data.get("delay_min") or 1
@@ -208,7 +298,12 @@ def send_email(request):
     return render(
         request,
         "app/send_email.html",
-        {"locations": locations, "queries": queries, "companies": companies},
+        {
+            "current_user": user,
+            "locations": locations,
+            "queries": queries,
+            "companies": companies,
+        },
     )
 
 
@@ -233,18 +328,23 @@ def get_companies_for_location_query(request):
     query = request.GET.get("query")
     user = _get_current_user(request)
     search_queries = user.results.filter(location=location, query=query)
-    companies = (
-        Company.objects.filter(search_queries__in=search_queries)
-        .exclude(email__isnull=True)
-        .exclude(
-            email__in=[
-                "",
-                "[]",
-            ]
+    companies = Company.objects.filter(search_queries__in=search_queries).filter(
+        Q(email__gt="") | Q(osm_email__gt="")
+    ).distinct()
+    companies_data = []
+    for company in companies:
+        emails = extract_valid_emails(
+            " ".join(
+                email for email in (company.email, company.osm_email) if email
+            )
         )
-        .distinct()
-    )
-    companies_data = [{"id": c.id, "name": c.name, "email": c.email} for c in companies]
+        if not emails:
+            continue
+        companies_data.append({
+            "id": company.id,
+            "name": company.name,
+            "email": ", ".join(emails),
+        })
     return JsonResponse({"companies": companies_data})
 
 
@@ -290,21 +390,11 @@ def login_superuser(request):
 
 
 def login_oauth(request):
-    cred_path = _resolve_google_login_credentials_path()
-    if not cred_path.is_file():
-        return render(
-            request,
-            "app/login_options.html",
-            {
-                "error": (
-                    "Google OAuth is not configured. " "Missing credentials" " file."
-                )
-            },
-        )
+    if not is_google_oauth_configured():
+        return _google_oauth_configuration_error(request, "app/login_options.html")
 
     redirect_uri = request.build_absolute_uri(reverse("login_oauth_callback"))
-    flow = Flow.from_client_secrets_file(
-        str(cred_path),
+    flow = create_google_oauth_flow(
         scopes=GOOGLE_LOGIN_SCOPES,
         redirect_uri=redirect_uri,
     )
@@ -318,23 +408,19 @@ def login_oauth(request):
 
 
 def login_oauth_callback(request):
+    if not is_google_oauth_configured():
+        return _google_oauth_configuration_error(request, "app/login_options.html")
     try:
-        cred_path = _resolve_google_login_credentials_path()
-        if not cred_path.is_file():
+        state = request.session.pop("oauth_login_state", None)
+        if not state:
             return render(
                 request,
                 "app/login_options.html",
-                {
-                    "error": (
-                        "Google OAuth is not configured. " "Missing credentials file."
-                    )
-                },
+                {"error": "Google OAuth session expired. Please try again."},
+                status=400,
             )
-
-        state = request.session.pop("oauth_login_state", None)
         redirect_uri = request.build_absolute_uri(reverse("login_oauth_callback"))
-        flow = Flow.from_client_secrets_file(
-            str(cred_path),
+        flow = create_google_oauth_flow(
             scopes=GOOGLE_LOGIN_SCOPES,
             state=state,
             redirect_uri=redirect_uri,
@@ -388,33 +474,43 @@ def oauth_start(request):
     user = _get_current_user(request)
     if not user:
         return redirect("login")
-    cred_path = getattr(user.credentials, "path", None)
-    if not cred_path or not Path(cred_path).is_file():
+    if not is_google_oauth_configured():
+        return _google_oauth_configuration_error(request, "app/oauth.html")
+    if not settings.FIELD_ENCRYPTION_KEYS:
         return render(
-            request, "app/oauth.html", {"error": "No credentials file found."}
+            request,
+            "app/oauth.html",
+            {"error": "Gmail token encryption is not configured on the server."},
+            status=503,
         )
 
-    if user.token and user.token.name and Path(user.token.path).is_file():
+    if user.token:
         try:
-            creds = Credentials.from_authorized_user_file(
-                user.token.path,
-                SCOPES,
-            )
+            creds = credentials_from_json(user.token, SCOPES)
             if creds and creds.valid and not creds.expired:
                 return redirect("send_email")
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
-                user.token.save(
-                    user.token.name.split("/")[-1],
-                    ContentFile(creds.to_json()),
-                    save=True,
-                )
+                user.token = credentials_to_json(creds)
+                user.save(update_fields=["token"])
                 return redirect("send_email")
-        except Exception:
-            pass
+        except (
+            GoogleAuthError,
+            KeyError,
+            TypeError,
+            ValueError,
+            requests.RequestException,
+        ) as exc:
+            logger.warning(
+                "Could not load or refresh Gmail OAuth token for user %s; "
+                "requesting authorization again: %s",
+                user.pk,
+                exc,
+            )
     redirect_uri = request.build_absolute_uri(reverse("oauth_callback"))
-    flow = Flow.from_client_secrets_file(
-        cred_path, scopes=SCOPES, redirect_uri=redirect_uri
+    flow = create_google_oauth_flow(
+        scopes=SCOPES,
+        redirect_uri=redirect_uri,
     )
     auth_url, state = flow.authorization_url(
         access_type="offline", include_granted_scopes="true", prompt="consent"
@@ -426,29 +522,41 @@ def oauth_start(request):
 
 
 def oauth_callback(request):
+    if not is_google_oauth_configured():
+        return _google_oauth_configuration_error(request, "app/oauth.html")
+    if not settings.FIELD_ENCRYPTION_KEYS:
+        return render(
+            request,
+            "app/oauth.html",
+            {"error": "Gmail token encryption is not configured on the server."},
+            status=503,
+        )
     try:
         user = _get_current_user(request)
         if not user:
             return redirect("login")
 
-        cred_path = getattr(user.credentials, "path", None)
-        if not cred_path or not Path(cred_path).is_file():
+        state = request.session.pop("oauth_state", None)
+        if not state:
             return render(
                 request,
                 "app/oauth.html",
-                {"error": "No credentials file found."},
+                {"error": "Google OAuth session expired. Please try again."},
+                status=400,
             )
 
-        state = request.session.pop("oauth_state", None)
         redirect_uri = request.build_absolute_uri(reverse("oauth_callback"))
-        flow = Flow.from_client_secrets_file(
-            cred_path, scopes=SCOPES, state=state, redirect_uri=redirect_uri
+        flow = create_google_oauth_flow(
+            scopes=SCOPES,
+            state=state,
+            redirect_uri=redirect_uri,
         )
 
         flow.fetch_token(authorization_response=request.build_absolute_uri())
 
         creds = flow.credentials
-        user.token.save("token.json", ContentFile(creds.to_json()), save=True)
+        user.token = credentials_to_json(creds)
+        user.save(update_fields=["token"])
         return render(
             request,
             "app/index.html",
@@ -456,9 +564,9 @@ def oauth_callback(request):
         )
 
     except Exception as e:
-        print(f"Error during OAuth callback: {e}")
+        logger.exception("Error during Gmail OAuth callback for user %s", user.pk)
         return render(
             request,
-            "app/login_options.html",
+            "app/oauth.html",
             {"error": "An error occurred during OAuth authentication."},
         )

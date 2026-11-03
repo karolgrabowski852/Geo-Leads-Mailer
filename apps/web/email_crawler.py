@@ -7,6 +7,7 @@ import asyncio
 from asgiref.sync import async_to_sync
 import urllib.robotparser as robotparser
 from collections import deque
+from apps.web.email_validation import extract_valid_emails
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +20,6 @@ DENYLIST_DOMAINS = {
             "linkedin.com", "facebook.com", "instagram.com", "twitter.com",
             "tiktok.com", "youtube.com",
         }
-
-EMAIL_REGEX = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
-
 
 class EmailCrawler:
     def __init__(self) -> None:
@@ -70,7 +68,7 @@ class EmailCrawler:
     def _extract_emails(self, html: str) -> Set[str]:
         if not html:
             return set()
-        return set(EMAIL_REGEX.findall(html))
+        return set(extract_valid_emails(html))
 
     def _discover_links(self, base_url: str, html: str) -> List[str]:
         sites = deque(maxlen=15)

@@ -1,19 +1,19 @@
 {% extends 'app/base.html' %}
-{% block title %}Login — Email Bot{% endblock %}
+{% block title %}Logowanie — Email Bot{% endblock %}
 {% block content %}
 <div class="max-w-lg mx-auto">
   <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 p-8 shadow-soft">
-    <h1 class="text-2xl font-semibold mb-4">Login</h1>
+    <h1 class="text-2xl font-semibold mb-4">Logowanie</h1>
     {% if error %}
-      <div class="mb-5 text-sm rounded-md bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 px-4 py-3">{{ error }}</div>
+      <div data-translate-error class="mb-5 text-sm rounded-md bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 px-4 py-3">{{ error }}</div>
     {% endif %}
-    <p class="text-sm text-slate-600 dark:text-slate-300 mb-6">Choose one of the available sign-in methods.</p>
+    <p class="text-sm text-slate-600 dark:text-slate-300 mb-6">Wybierz jedną z dostępnych metod logowania.</p>
     <div class="space-y-3">
       <a href="{% url 'login_oauth' %}" class="w-full inline-flex justify-center items-center gap-2 rounded-md bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 text-sm font-medium shadow-soft">
-        Login with Google OAuth
+        Zaloguj się przez Google
       </a>
       <a href="{% url 'login_superuser' %}" class="w-full inline-flex justify-center items-center gap-2 rounded-md border border-slate-300 dark:border-slate-600 px-5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
-        Login as Superuser
+        Zaloguj się jako administrator
       </a>
     </div>
   </div>

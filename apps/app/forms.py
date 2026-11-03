@@ -13,7 +13,7 @@ class SearchForm(forms.Form):
 			cleaned_data.get("category") == "custom"
 			and not cleaned_data.get("custom_category", "").strip()
 		):
-			self.add_error("custom_category", "Wpisz własną kategorię.")
+			self.add_error("custom_category", "Enter a custom category.")
 		return cleaned_data
 
 

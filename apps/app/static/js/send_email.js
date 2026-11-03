@@ -79,7 +79,7 @@ function updateSummary() {
     summaryFiles.textContent = fileInput.files.length;
 }
 
-// Fetching danych w oparciu o lokalizacje
+// Pobieranie danych na podstawie lokalizacji
 locationSelect.addEventListener('change', async () => {
     clearSelect(querySelect);
     clearSelect(companySelect);
@@ -126,7 +126,7 @@ querySelect.addEventListener('change', async () => {
     updateSummary();
 });
 
-// Przyciski "Wybierz wszystko"
+// Przyciski „Wybierz wszystkie”
 selectAllQueriesBtn.addEventListener('click', () => {
     Array.from(querySelect.options).forEach(o => o.selected = true);
     querySelect.dispatchEvent(new Event('change'));
@@ -137,7 +137,7 @@ selectAllCompaniesBtn.addEventListener('click', () => {
     updateSummary();
 });
 
-// Drag & Drop
+// Przeciąganie i upuszczanie plików
 fileInput.addEventListener('change', () => {
     fileList.innerHTML = '';
     Array.from(fileInput.files).forEach(f => {
@@ -172,7 +172,6 @@ dropZone.addEventListener('drop', e => {
     fileInput.dispatchEvent(new Event('change'));
 });
 
-// Zakończenie
 clearBtn.addEventListener('click', () => {
     locationSelect.value = '';
     clearSelect(querySelect);
@@ -184,13 +183,12 @@ clearBtn.addEventListener('click', () => {
 
 companySelect.addEventListener('change', updateSummary);
 
-// Obsługa formularza (Wysyłka maili)
 document.getElementById('sendEmailForm').addEventListener('submit', e => {
     e.preventDefault();
     submitBtn.disabled = true;
     submitBtn.classList.add('cursor-wait');
     const original = submitBtn.querySelector('span').textContent;
-    submitBtn.querySelector('span').textContent = 'Queuing...';
+    submitBtn.querySelector('span').textContent = 'Dodawanie do kolejki...';
 
     const form = e.currentTarget;
     const recipients = Array.from(companySelect.selectedOptions).map(o => o.value);
@@ -201,7 +199,7 @@ document.getElementById('sendEmailForm').addEventListener('submit', e => {
     });
 
     const fd = new FormData(form);
-    fd.delete('reciver'); // usuwamy stare dane dla bezpieczeństwa powtórzeń
+    fd.delete('reciver');
     recipients.forEach(r => fd.append('recipients[]', r));
 
     fetch('/send_email', {
@@ -211,17 +209,17 @@ document.getElementById('sendEmailForm').addEventListener('submit', e => {
         headers: { 'X-CSRFToken': getCsrfToken() }
     })
         .then(async response => {
-            const data = await response.json();
+            const data = await response.json().catch(() => ({}));
             if (!response.ok) {
                 throw new Error(data.error || 'Nie udało się dodać wiadomości do kolejki.');
             }
             return data;
         })
         .then(data => {
-            pushToast(`Queued ${data.queued} email(s). Delay ${data.delay_min} min`, 'success');
+            pushToast(`Dodano do kolejki ${data.queued} wiadomości. Odstęp: ${data.delay_min} min`, 'success');
         })
         .catch(err => {
-            pushToast('Error: ' + err.message, 'error');
+            pushToast('Błąd: ' + translateMessage(err.message), 'error');
         })
         .finally(() => {
             submitBtn.disabled = false;

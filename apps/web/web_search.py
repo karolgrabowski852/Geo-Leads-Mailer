@@ -5,6 +5,7 @@ import math
 import re
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
 
@@ -134,6 +135,106 @@ class _RetryableOverpassAPIError(OverpassAPIError):
     pass
 
 
+class OverpassCache:
+    @classmethod
+    def get_or_fetch(
+        cls,
+        endpoints: list[str],
+        query: str,
+        fetch: Callable[[], list[dict]],
+    ) -> list[dict]:
+        cache_key = cls._cache_key(endpoints, query)
+        cached = cls._read(cache_key)
+        if cached is not None:
+            return cached
+
+        lock_token = uuid.uuid4().hex
+        cls._acquire_request_lock(lock_token)
+        try:
+            cached = cls._read(cache_key)
+            if cached is not None:
+                return cached
+            cls._wait_for_rate_limit()
+            elements = fetch()
+            cls._write(cache_key, elements)
+            return elements
+        finally:
+            cls._release_request_lock(lock_token)
+
+    @staticmethod
+    def _cache_key(endpoints: list[str], query: str) -> str:
+        endpoint_key = "\n".join(endpoints)
+        return "overpass:query:" + hashlib.sha256(
+            f"{endpoint_key}\n{query}".encode("utf-8")
+        ).hexdigest()
+
+    @staticmethod
+    def _read(cache_key: str) -> list[dict] | None:
+        try:
+            return cache.get(cache_key)
+        except Exception as exc:
+            raise OverpassAPIError(
+                "Could not read the search cache."
+            ) from exc
+
+    @staticmethod
+    def _write(cache_key: str, elements: list[dict]) -> None:
+        try:
+            cache.set(cache_key, elements, timeout=CACHE_TTL_SECONDS)
+        except Exception:
+            logger.exception("Could not cache the Overpass response")
+
+    @staticmethod
+    def _acquire_request_lock(lock_token: str) -> None:
+        lock_deadline = time.monotonic() + 5
+        try:
+            while not cache.add(
+                REQUEST_LOCK_KEY,
+                lock_token,
+                timeout=REQUEST_LOCK_TTL_SECONDS,
+            ):
+                if time.monotonic() >= lock_deadline:
+                    raise OverpassAPIError(
+                        "Map search is busy. Please try again shortly."
+                    )
+                time.sleep(0.25)
+        except OverpassAPIError:
+            raise
+        except Exception as exc:
+            raise OverpassAPIError(
+                "Could not safely start the map search."
+            ) from exc
+
+    @staticmethod
+    def _wait_for_rate_limit() -> None:
+        rate_deadline = time.monotonic() + 5
+        try:
+            while not cache.add(
+                REQUEST_RATE_KEY,
+                True,
+                timeout=REQUEST_INTERVAL_SECONDS,
+            ):
+                if time.monotonic() >= rate_deadline:
+                    raise OverpassAPIError(
+                        "Map search is busy. Please try again shortly."
+                    )
+                time.sleep(0.1)
+        except OverpassAPIError:
+            raise
+        except Exception as exc:
+            raise OverpassAPIError(
+                "Could not safely start the map search."
+            ) from exc
+
+    @staticmethod
+    def _release_request_lock(lock_token: str) -> None:
+        try:
+            if cache.get(REQUEST_LOCK_KEY) == lock_token:
+                cache.delete(REQUEST_LOCK_KEY)
+        except Exception:
+            logger.exception("Could not release the Overpass request lock")
+
+
 def _normalise_phrase(value: str) -> str:
     return " ".join(value.split())
 
@@ -143,20 +244,20 @@ def resolve_category(selected: str, custom_phrase: str = "") -> SearchCategory:
         try:
             return CATEGORIES_BY_KEY[selected]
         except KeyError as exc:
-            raise ValueError("Wybierz kategorię z listy.") from exc
+            raise ValueError("Choose a category from the list.") from exc
 
     phrase = _normalise_phrase(custom_phrase)
     if not phrase:
-        raise ValueError("Wpisz własną kategorię.")
+        raise ValueError("Enter a custom category.")
     if len(phrase) > MAX_CUSTOM_CATEGORY_LENGTH:
         raise ValueError(
-            f"Własna kategoria może mieć maksymalnie "
-            f"{MAX_CUSTOM_CATEGORY_LENGTH} znaków."
+            f"A custom category can contain at most "
+            f"{MAX_CUSTOM_CATEGORY_LENGTH} characters."
         )
     if not any(character.isalnum() for character in phrase):
-        raise ValueError("Kategoria musi zawierać litery lub cyfry.")
+        raise ValueError("A category must contain letters or numbers.")
     if any(ord(character) < 32 for character in phrase):
-        raise ValueError("Kategoria zawiera niedozwolone znaki.")
+        raise ValueError("The category contains invalid characters.")
 
     alias = CATEGORY_ALIASES.get(phrase.casefold())
     if alias:
@@ -205,11 +306,11 @@ class PolygonQuery:
         self.country = country
         self.category: SearchCategory | None = None
         if not isinstance(polygon_coords, list):
-            raise ValueError("Poligon musi być listą punktów.")
+            raise ValueError("The polygon must be a list of points.")
         if len(polygon_coords) < 3:
-            raise ValueError("Poligon musi mieć co najmniej 3 punkty.")
+            raise ValueError("The polygon must contain at least 3 points.")
         if len(polygon_coords) > MAX_POLYGON_POINTS:
-            raise ValueError("Poligon ma zbyt wiele punktów.")
+            raise ValueError("The polygon contains too many points.")
 
         self.polygon = []
         for raw_point in polygon_coords:
@@ -217,14 +318,14 @@ class PolygonQuery:
                 lat = float(raw_point["lat"])
                 lng = float(raw_point["lng"])
             except (KeyError, TypeError, ValueError) as exc:
-                raise ValueError("Niepoprawny format punktu poligonu.") from exc
+                raise ValueError("Invalid polygon point format.") from exc
             if (
                 not math.isfinite(lat)
                 or not math.isfinite(lng)
                 or not -90 <= lat <= 90
                 or not -180 <= lng <= 180
             ):
-                raise ValueError("Współrzędne poligonu są poza zakresem.")
+                raise ValueError("Polygon coordinates are out of range.")
             self.polygon.append(Point(lat=lat, lng=lng))
 
     def set_category(self, category: SearchCategory) -> "PolygonQuery":
@@ -449,7 +550,7 @@ class PolygonQuery:
 
     def build_query(self) -> str:
         if self.category is None:
-            raise ValueError("Wybierz kategorię wyszukiwania.")
+            raise ValueError("Choose a search category.")
         bounds = self.get_bounding_box()
         bbox = (
             f"({bounds.low.lat:.6f},{bounds.low.lng:.6f},"
@@ -475,109 +576,32 @@ class PolygonQuery:
 
     def _fetch_elements(self, query: str) -> list[dict]:
         endpoints = [settings.OVERPASS_API_URL]
-        fallback_endpoints = list(
-            getattr(settings, "OVERPASS_API_FALLBACK_URLS", [])
-        )
-        legacy_fallback_endpoint = getattr(
-            settings, "OVERPASS_API_FALLBACK_URL", ""
-        )
-        if legacy_fallback_endpoint:
-            fallback_endpoints.append(legacy_fallback_endpoint)
-        for endpoint in fallback_endpoints:
+        for endpoint in settings.OVERPASS_API_FALLBACK_URLS:
             if endpoint and endpoint not in endpoints:
                 endpoints.append(endpoint)
-        endpoint_key = "\n".join(endpoints)
-        cache_key = "overpass:query:" + hashlib.sha256(
-            f"{endpoint_key}\n{query}".encode("utf-8")
-        ).hexdigest()
-        try:
-            cached = cache.get(cache_key)
-        except Exception as exc:
-            logger.exception("Overpass cache read failed")
-            raise OverpassAPIError(
-                "Nie można sprawdzić pamięci podręcznej wyszukiwania."
-            ) from exc
-        if cached is not None:
-            return cached
 
-        lock_token = uuid.uuid4().hex
-        lock_deadline = time.monotonic() + 5
-        try:
-            while not cache.add(
-                REQUEST_LOCK_KEY,
-                lock_token,
-                timeout=REQUEST_LOCK_TTL_SECONDS,
-            ):
-                if time.monotonic() >= lock_deadline:
-                    raise OverpassAPIError(
-                        "Wyszukiwarka map jest zajęta. Spróbuj ponownie za chwilę."
-                    )
-                time.sleep(0.25)
-        except OverpassAPIError:
-            raise
-        except Exception as exc:
-            logger.exception("Could not acquire the Overpass request lock")
-            raise OverpassAPIError(
-                "Nie można bezpiecznie rozpocząć wyszukiwania map."
-            ) from exc
+        return OverpassCache.get_or_fetch(
+            endpoints,
+            query,
+            lambda: self._request_from_endpoints(endpoints, query),
+        )
 
-        try:
+    def _request_from_endpoints(
+        self, endpoints: list[str], query: str
+    ) -> list[dict]:
+        for index, endpoint in enumerate(endpoints):
             try:
-                cached = cache.get(cache_key)
-            except Exception as exc:
-                logger.exception("Overpass cache read failed")
-                raise OverpassAPIError(
-                    "Nie można sprawdzić pamięci podręcznej wyszukiwania."
-                ) from exc
-            if cached is not None:
-                return cached
-            rate_deadline = time.monotonic() + 5
-            try:
-                while not cache.add(
-                    REQUEST_RATE_KEY,
-                    True,
-                    timeout=REQUEST_INTERVAL_SECONDS,
-                ):
-                    if time.monotonic() >= rate_deadline:
-                        raise OverpassAPIError(
-                            "Wyszukiwarka map jest zajęta. Spróbuj ponownie za chwilę."
-                        )
-                    time.sleep(0.1)
-            except OverpassAPIError:
-                raise
-            except Exception as exc:
-                logger.exception("Could not apply the Overpass request rate limit")
-                raise OverpassAPIError(
-                    "Nie można bezpiecznie rozpocząć wyszukiwania map."
-                ) from exc
-            for index, endpoint in enumerate(endpoints):
-                try:
-                    elements = self._request_elements(
-                        endpoint,
-                        query,
-                        max_attempts=1,
-                    )
-                    break
-                except _RetryableOverpassAPIError as exc:
-                    if index == len(endpoints) - 1:
-                        raise
-                    logger.warning(
-                        "Overpass endpoint %s failed: %s; retrying on %s",
-                        endpoint,
-                        exc,
-                        endpoints[index + 1],
-                    )
-            try:
-                cache.set(cache_key, elements, timeout=CACHE_TTL_SECONDS)
-            except Exception:
-                logger.exception("Could not cache the Overpass response")
-            return elements
-        finally:
-            try:
-                if cache.get(REQUEST_LOCK_KEY) == lock_token:
-                    cache.delete(REQUEST_LOCK_KEY)
-            except Exception:
-                logger.exception("Could not release the Overpass request lock")
+                return self._request_elements(endpoint, query, max_attempts=1)
+            except _RetryableOverpassAPIError as exc:
+                if index == len(endpoints) - 1:
+                    raise
+                logger.warning(
+                    "Overpass endpoint %s failed: %s; retrying on %s",
+                    endpoint,
+                    exc,
+                    endpoints[index + 1],
+                )
+        raise OverpassAPIError("No Overpass endpoint is configured.")
 
     @staticmethod
     def _request_elements(
@@ -585,7 +609,7 @@ class PolygonQuery:
         query: str,
         max_attempts: int = 3,
     ) -> list[dict]:
-        user_agent = getattr(settings, "OVERPASS_USER_AGENT", "GeoLeadsMailer/1.0")
+        user_agent = settings.OVERPASS_USER_AGENT
         headers = {
             "Accept": "application/json",
             "User-Agent": user_agent,
@@ -611,8 +635,7 @@ class PolygonQuery:
                     time.sleep(delay)
                     continue
                 raise _RetryableOverpassAPIError(
-                    "Nie udało się połączyć z usługą OpenStreetMap. "
-                    "Spróbuj ponownie później."
+                    "Could not connect to OpenStreetMap. Please try again later."
                 ) from exc
 
             if response.status_code == 429 or response.status_code >= 500:
@@ -633,8 +656,8 @@ class PolygonQuery:
                     continue
             if response.status_code >= 400:
                 message = (
-                    "Usługa OpenStreetMap zwróciła błąd "
-                    f"HTTP {response.status_code}. Spróbuj ponownie później."
+                    "OpenStreetMap returned HTTP "
+                    f"{response.status_code}. Please try again later."
                 )
                 if response.status_code == 429 or response.status_code >= 500:
                     raise _RetryableOverpassAPIError(message)
@@ -643,25 +666,24 @@ class PolygonQuery:
                 payload = response.json()
             except ValueError as exc:
                 raise OverpassAPIError(
-                    "Usługa OpenStreetMap zwróciła nieprawidłową odpowiedź."
+                    "OpenStreetMap returned an invalid response."
                 ) from exc
             if not isinstance(payload, dict) or not isinstance(
                 payload.get("elements"), list
             ):
                 raise OverpassAPIError(
-                    "Usługa OpenStreetMap zwróciła nieprawidłową odpowiedź."
+                    "OpenStreetMap returned an invalid response."
                 )
             if payload.get("remark"):
                 logger.warning("Overpass API returned a remark: %s", payload["remark"])
                 raise OverpassAPIError(
-                    "Wyszukiwanie w OpenStreetMap przekroczyło dostępne limity. "
-                    "Zaznacz mniejszy obszar i spróbuj ponownie."
+                    "The OpenStreetMap search exceeded the available limits. "
+                    "Draw a smaller area and try again."
                 )
             return payload["elements"][:MAX_RESULTS]
 
         raise OverpassAPIError(
-            "Usługa OpenStreetMap jest tymczasowo przeciążona. "
-            "Spróbuj ponownie później."
+            "OpenStreetMap is temporarily overloaded. Please try again later."
         )
 
     def _normalise_element(self, element: dict) -> dict | None:
@@ -728,7 +750,7 @@ class PolygonQuery:
 
     def search(self) -> dict:
         if self.category is None:
-            raise ValueError("Wybierz kategorię wyszukiwania.")
+            raise ValueError("Choose a search category.")
         query = self.build_query()
         elements = self._fetch_elements(query)
         unique_elements = {}
@@ -751,7 +773,7 @@ class PolygonQuery:
         }
         if self.category.text_query:
             results["search_message"] = (
-                "Nie znaleziono dokładnego znacznika OSM dla tej frazy. "
-                "Wykonano wyszukiwanie tekstowe po nazwie obiektu."
+                "No exact OSM tag was found for this phrase. "
+                "A text search by object name was performed."
             )
         return results

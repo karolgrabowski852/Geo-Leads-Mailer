@@ -16,7 +16,6 @@ from apps.web.web_search import (
 
 @override_settings(
     OVERPASS_API_URL="https://overpass.example/interpreter",
-    OVERPASS_API_FALLBACK_URL="",
     OVERPASS_API_FALLBACK_URLS=[],
     OVERPASS_USER_AGENT="GeoLeadsMailer-test/1.0",
 )
@@ -225,6 +224,20 @@ class PolygonQueryTests(TestCase):
             post.call_args.kwargs["headers"]["User-Agent"],
             "GeoLeadsMailer-test/1.0",
         )
+
+    @patch(
+        "apps.web.web_search.cache.get",
+        side_effect=RuntimeError("cache unavailable"),
+    )
+    @patch("apps.web.web_search.httpx.post")
+    def test_cache_read_failure_is_reported(self, post, cache_get):
+        with self.assertRaisesRegex(
+            OverpassAPIError, "Could not read the search cache."
+        ):
+            self._searcher().search()
+
+        post.assert_not_called()
+        cache_get.assert_called_once()
 
     @override_settings(
         OVERPASS_API_FALLBACK_URLS=[

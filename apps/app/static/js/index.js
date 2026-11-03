@@ -64,8 +64,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof L !== 'undefined') {
         const mapElement = document.getElementById('map');
         if (mapElement) {
-            // Inicjalizacja mapy
-            const map = L.map(mapElement).setView([52.23, 21.01], 12); // Srodek na Warszawe
+            const map = L.map(mapElement).setView([52.23, 21.01], 12);
 
             let providerIndex = 0;
             let tileLayer = null;
@@ -87,12 +86,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         fallbackCount += 1;
                         providerIndex += 1;
                         setTileLayer();
-                        pushToast('Przelaczono na zapasowe zrodlo mapy.', 'warn');
+                        pushToast('Przełączono na zapasowe źródło mapy.', 'warn');
                         return;
                     }
                     if (fallbackCount >= tileProviders.length - 1) {
                         pushToast(
-                            'Nie mozna pobrac kafelkow mapy. Sprawdz internet lub blokady w przegladarce.',
+                            'Nie można pobrać kafelków mapy. Sprawdź połączenie z internetem lub ustawienia przeglądarki.',
                             'error'
                         );
                     }
@@ -105,6 +104,57 @@ document.addEventListener('DOMContentLoaded', function() {
 
             drawnItems = new L.FeatureGroup();
             map.addLayer(drawnItems);
+
+            Object.assign(L.drawLocal.draw.toolbar.actions, {
+                title: 'Anuluj rysowanie',
+                text: 'Anuluj'
+            });
+            Object.assign(L.drawLocal.draw.toolbar.finish, {
+                title: 'Zakończ rysowanie',
+                text: 'Zakończ'
+            });
+            Object.assign(L.drawLocal.draw.toolbar.undo, {
+                title: 'Usuń ostatni punkt',
+                text: 'Usuń ostatni punkt'
+            });
+            Object.assign(L.drawLocal.draw.toolbar.buttons, {
+                polygon: 'Narysuj wielokąt',
+                rectangle: 'Narysuj prostokąt'
+            });
+            Object.assign(L.drawLocal.draw.handlers.polygon.tooltip, {
+                start: 'Kliknij, aby rozpocząć rysowanie obszaru.',
+                cont: 'Kliknij, aby kontynuować rysowanie obszaru.',
+                end: 'Kliknij pierwszy punkt, aby zamknąć obszar.'
+            });
+            Object.assign(L.drawLocal.draw.handlers.rectangle.tooltip, {
+                start: 'Kliknij i przeciągnij, aby narysować prostokąt.',
+                end: 'Zwolnij przycisk myszy, aby zakończyć rysowanie.'
+            });
+            Object.assign(L.drawLocal.edit.toolbar.actions.save, {
+                title: 'Zapisz zmiany',
+                text: 'Zapisz'
+            });
+            Object.assign(L.drawLocal.edit.toolbar.actions.cancel, {
+                title: 'Anuluj edycję i odrzuć zmiany',
+                text: 'Anuluj'
+            });
+            Object.assign(L.drawLocal.edit.toolbar.actions.clearAll, {
+                title: 'Usuń wszystkie warstwy',
+                text: 'Usuń wszystko'
+            });
+            Object.assign(L.drawLocal.edit.toolbar.buttons, {
+                edit: 'Edytuj warstwy',
+                editDisabled: 'Brak warstw do edycji',
+                remove: 'Usuń warstwy',
+                removeDisabled: 'Brak warstw do usunięcia'
+            });
+            Object.assign(L.drawLocal.edit.handlers.edit.tooltip, {
+                text: 'Przeciągnij uchwyty lub znacznik, aby edytować obiekt.',
+                subtext: 'Kliknij Anuluj, aby cofnąć zmiany.'
+            });
+            Object.assign(L.drawLocal.edit.handlers.remove.tooltip, {
+                text: 'Kliknij obiekt, aby go usunąć.'
+            });
 
             const drawControl = new L.Control.Draw({
                 edit: { featureGroup: drawnItems },
@@ -140,7 +190,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     } else {
-        pushToast('Nie mozna zaladowac bibliotek Leaflet.', 'error');
+        pushToast('Nie można załadować biblioteki Leaflet.', 'error');
     }
 
     const extractPlaces = (payload) => {
@@ -162,12 +212,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const renderEmptyState = (queryText, searchMessage = '') => {
         resultsPanel.classList.remove('hidden');
         resultsCount.textContent = '0';
-        resultsMeta.textContent = `Brak wynikow dla zapytania: ${queryText}${
-            searchMessage ? ` — ${searchMessage}` : ''
+        resultsMeta.textContent = `Brak wyników dla zapytania: ${queryText}${
+            searchMessage ? ` — ${translateMessage(searchMessage)}` : ''
         }`;
         resultsList.innerHTML = `
             <div class="rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
-                Nie znaleziono firm dla wybranego obszaru.
+                Nie znaleziono firm na wybranym obszarze.
             </div>
         `;
     };
@@ -182,7 +232,7 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsPanel.classList.remove('hidden');
         resultsCount.textContent = String(places.length);
         resultsMeta.textContent = `Zapytanie: ${queryText}${
-            payload?.search_message ? ` — ${payload.search_message}` : ''
+            payload?.search_message ? ` — ${translateMessage(payload.search_message)}` : ''
         }`;
         resultsList.innerHTML = '';
 
@@ -206,7 +256,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const phoneEl = document.createElement('p');
             phoneEl.className = 'mt-1 text-xs text-slate-500 dark:text-slate-300';
-            phoneEl.textContent = `Tel: ${phone}`;
+            phoneEl.textContent = `Telefon: ${phone}`;
 
             wrapper.appendChild(title);
             wrapper.appendChild(addressEl);
@@ -225,7 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 link.href = website;
                 link.target = '_blank';
                 link.rel = 'noopener noreferrer';
-                link.textContent = 'Strona www';
+                link.textContent = 'Strona internetowa';
                 wrapper.appendChild(link);
             }
 
@@ -235,7 +285,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return places.length;
     };
 
-    // Obsługa Resetu
     resetBtn.addEventListener('click', () => {
         if (drawnItems) {
             drawnItems.clearLayers();
@@ -248,7 +297,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const coords = polygonInput.value;
         if (!coords) {
-            pushToast("Prosze narysowac obszar na mapie.", "error");
+            pushToast("Narysuj obszar na mapie.", "error");
             return;
         }
 
@@ -268,11 +317,11 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const parsed = JSON.parse(coords);
             if (!Array.isArray(parsed) || parsed.length < 3) {
-                pushToast("Poligon musi miec co najmniej 3 punkty.", "error");
+                pushToast("Poligon musi zawierać co najmniej 3 punkty.", "error");
                 return;
             }
         } catch (_err) {
-            pushToast("Niepoprawny format poligonu.", "error");
+            pushToast("Nieprawidłowy format poligonu.", "error");
             return;
         }
 
@@ -311,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const payload = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                const errorMessage = payload?.error || 'Wystapil blad podczas wyszukiwania.';
+                const errorMessage = payload?.error || 'Wystąpił błąd podczas wyszukiwania.';
                 pushToast(errorMessage, 'error');
                 return;
             }
@@ -321,12 +370,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 pushToast(payload.search_warning, 'warn');
             }
             if (placesCount > 0) {
-                pushToast('Wyszukiwanie zakonczone.', 'success');
+                pushToast('Wyszukiwanie zakończone.', 'success');
             } else {
-                pushToast('Brak wynikow dla wybranego zapytania.', 'warn');
+                pushToast('Brak wyników dla wybranego zapytania.', 'warn');
             }
         } catch (_err) {
-            pushToast('Nie udalo sie polaczyc z serwerem.', 'error');
+            pushToast('Nie udało się połączyć z serwerem.', 'error');
         } finally {
             if (slowSearchTimer !== null) {
                 window.clearTimeout(slowSearchTimer);

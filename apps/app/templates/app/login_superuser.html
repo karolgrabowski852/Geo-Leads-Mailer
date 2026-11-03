@@ -1,21 +1,21 @@
 {% extends 'app/base.html' %}
-{% block title %}Superuser Login — Email Bot{% endblock %}
+{% block title %}Logowanie administratora — Email Bot{% endblock %}
 {% block content %}
 <div class="max-w-md mx-auto">
   <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 p-8 shadow-soft">
-    <h1 class="text-2xl font-semibold mb-6">Superuser sign in</h1>
-    {% if error %}<div class="mb-4 text-sm rounded-md bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 px-4 py-3">{{ error }}</div>{% endif %}
+    <h1 class="text-2xl font-semibold mb-6">Logowanie administratora</h1>
+    {% if error %}<div data-translate-error class="mb-4 text-sm rounded-md bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 px-4 py-3">{{ error }}</div>{% endif %}
     <form method="post" class="space-y-5">
       {% csrf_token %}
       <div>
-        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2" for="username">Username</label>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2" for="username">Nazwa użytkownika</label>
         <input id="username" name="username" required class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/70 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/60 focus:border-brand-500" />
       </div>
       <div>
-        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2" for="password">Password</label>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2" for="password">Hasło</label>
         <input id="password" type="password" name="password" required class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/70 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/60 focus:border-brand-500" />
       </div>
-      <button class="w-full inline-flex justify-center items-center gap-2 rounded-md bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 text-sm font-medium shadow-soft focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-600" type="submit">Login</button>
+      <button class="w-full inline-flex justify-center items-center gap-2 rounded-md bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 text-sm font-medium shadow-soft focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-600" type="submit">Zaloguj się</button>
     </form>
   </div>
 </div>

@@ -46,10 +46,14 @@ def cleanup_attachments(self, attachment_paths: List[str]):
 def send_bulk_emails(self, payloads: list, user_id: int, delay_s: int = 5):
     if not payloads:
         return {"count": 0}
-    for i, p in enumerate(payloads):
-        send_email_task.apply_async(kwargs={"user_id": user_id, **p}, countdown=i * delay_s, queue='rabbit_tasks')
     attachment_paths = payloads[0].get('attachments') if isinstance(payloads[0], dict) else []
-    if attachment_paths:
-        total_delay = (len(payloads) - 1) * delay_s + 30
-        cleanup_attachments.apply_async(args=[attachment_paths], countdown=total_delay, queue='rabbit_tasks')
-    return {"count": len(payloads)}
+    scheduled_count = 0
+    try:
+        for i, p in enumerate(payloads):
+            send_email_task.apply_async(kwargs={"user_id": user_id, **p}, countdown=i * delay_s, queue='rabbit_tasks')
+            scheduled_count += 1
+        return {"count": scheduled_count}
+    finally:
+        if attachment_paths:
+            total_delay = max(0, (scheduled_count - 1) * delay_s + 30)
+            cleanup_attachments.apply_async(args=[attachment_paths], countdown=total_delay, queue='rabbit_tasks')

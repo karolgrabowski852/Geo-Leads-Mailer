@@ -1,6 +1,5 @@
 import json
 import logging
-import math
 
 from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator
@@ -10,7 +9,11 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_GET
 
 from apps.app.models import Company, SearchQuery
-from apps.app.utils import save_files
+from apps.app.utils import (
+    _validate_polygon_coords,
+    is_authenticated,
+    save_files,
+)
 from apps.web.email_validation import extract_valid_emails
 from apps.web.web_search import (
     CATEGORY_CHOICES,
@@ -19,55 +22,29 @@ from apps.web.web_search import (
     resolve_category,
 )
 
-from .auth_views import _get_current_user, session_login_required_json
 from .forms import SearchForm, SendEmailForm
 from .tasks import send_bulk_emails
 
 logger = logging.getLogger(__name__)
 
 
+def _index_authentication_required(request):
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"error": "Login required"}, status=401)
+    return render(
+        request,
+        "app/index.html",
+        {
+            "current_user": None,
+            "categories": CATEGORY_CHOICES[:-1],
+            "search_error": "Login required",
+        },
+        status=401,
+    )
 
 
-def _validate_polygon_coords(raw_polygon):
-    if not isinstance(raw_polygon, list):
-        raise ValueError("The polygon coordinates must be a list of points.")
-    if len(raw_polygon) < 3:
-        raise ValueError("The polygon must contain at least 3 points.")
-    if len(raw_polygon) > 200:
-        raise ValueError("The polygon contains too many points.")
-
-    normalized = []
-    for point in raw_polygon:
-        if not isinstance(point, dict):
-            raise ValueError("Invalid polygon point format.")
-        if "lat" not in point or "lng" not in point:
-            raise ValueError("Each polygon point must contain `lat` and `lng`.")
-        try:
-            lat = float(point["lat"])
-            lng = float(point["lng"])
-        except (TypeError, ValueError) as exc:
-            raise ValueError("Polygon coordinates must be numbers.") from exc
-        if (
-            not math.isfinite(lat)
-            or not math.isfinite(lng)
-            or lat < -90
-            or lat > 90
-            or lng < -180
-            or lng > 180
-        ):
-            raise ValueError("Polygon coordinates are out of range.")
-        normalized.append({"lat": lat, "lng": lng})
-    return normalized
-
-
-
-
-
-
-
-
-def index(request):
-    user = _get_current_user(request)
+@is_authenticated(methods=("POST",), on_failure=_index_authentication_required)
+def index(request, *, user):
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     context = {
         "current_user": user,
@@ -85,9 +62,6 @@ def index(request):
         )
 
     if request.method == "POST":
-        if not user and not request.user.is_authenticated:
-            return _error_response("Login required", status_code=401)
-
         form = SearchForm(request.POST)
         if not form.is_valid():
             error = next(iter(form.errors.values()), ["Invalid search data."])
@@ -101,12 +75,8 @@ def index(request):
                 form.cleaned_data["category"],
                 form.cleaned_data["custom_category"],
             )
-            language = user.language or "pl"
-            country = user.country or "PL"
             searcher = PolygonQuery(
                 polygon_coords=polygon_coords,
-                language=language,
-                country=country,
             )
             searcher.set_category(category)
             results = searcher.search()
@@ -167,12 +137,9 @@ def index(request):
     return render(request, "app/index.html", context)
 
 
-def send_email(request):
-    user = _get_current_user(request)
-    if not user:
-        return redirect("login")
-    locations = user.results.values_list("location", flat=True).distinct()
-    queries = []
+@is_authenticated(on_failure=lambda _request: redirect("login"))
+def send_email(request, *, user):
+    searches = user.results.order_by("-searched_at", "-pk")
     companies = []
 
     if request.method == "POST":
@@ -246,18 +213,16 @@ def send_email(request):
         "app/send_email.html",
         {
             "current_user": user,
-            "locations": locations,
-            "queries": queries,
+            "searches": searches,
             "companies": companies,
         },
     )
 
 
 @require_GET
-@session_login_required_json
-def get_queries_for_location(request):
+@is_authenticated
+def get_queries_for_location(request, *, user):
     location = request.GET.get("location")
-    user = _get_current_user(request)
     queries = (
         user.results.filter(location=location)
         .values_list("query", flat=True)
@@ -268,15 +233,35 @@ def get_queries_for_location(request):
 
 
 @require_GET
-@session_login_required_json
-def get_companies_for_location_query(request):
+@is_authenticated
+def get_companies_for_location_query(request, *, user):
     location = request.GET.get("location")
     query = request.GET.get("query")
-    user = _get_current_user(request)
     search_queries = user.results.filter(location=location, query=query)
     companies = Company.objects.filter(search_queries__in=search_queries).filter(
         Q(email__gt="") | Q(osm_email__gt="")
     ).distinct()
+    return JsonResponse({"companies": _serialize_companies(companies)})
+
+
+@require_GET
+@is_authenticated
+def get_companies_for_search(request, *, user):
+    search_id = request.GET.get("search_id", "")
+    if not search_id.isdecimal():
+        return JsonResponse({"error": "Invalid search."}, status=400)
+
+    search_query = user.results.filter(pk=search_id).first()
+    if search_query is None:
+        return JsonResponse({"error": "Search not found."}, status=404)
+
+    companies = search_query.companies.filter(
+        Q(email__gt="") | Q(osm_email__gt="")
+    ).distinct()
+    return JsonResponse({"companies": _serialize_companies(companies)})
+
+
+def _serialize_companies(companies):
     companies_data = []
     for company in companies:
         emails = extract_valid_emails(
@@ -291,4 +276,4 @@ def get_companies_for_location_query(request):
             "name": company.name,
             "email": ", ".join(emails),
         })
-    return JsonResponse({"companies": companies_data})
+    return companies_data

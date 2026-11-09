@@ -100,7 +100,10 @@ class ModelsTests(TestCase):
         self.assertFalse(company.save_mail())
 
         company.refresh_from_db()
-        self.assertEqual(company.email_crawl_status, 'pending')
+        self.assertEqual(
+            company.email_crawl_status,
+            Company.CrawlStatus.PENDING,
+        )
         apply_async.assert_called_once_with(
             kwargs={'url': 'https://example.com', 'company_id': company.pk},
             queue='redis_tasks',
@@ -116,7 +119,7 @@ class ModelsTests(TestCase):
             name='Example',
             website='https://example.com',
             osm_email='osm@example.com',
-            email_crawl_status='pending',
+            email_crawl_status=Company.CrawlStatus.PENDING,
         )
 
         crawl_email_addresses.run(company.website, company_id=company.pk)
@@ -126,4 +129,7 @@ class ModelsTests(TestCase):
         self.assertGreater(len(expected_emails), 500)
         self.assertEqual(company.email, expected_emails)
         self.assertEqual(company.osm_email, 'osm@example.com')
-        self.assertEqual(company.email_crawl_status, 'completed')
+        self.assertEqual(
+            company.email_crawl_status,
+            Company.CrawlStatus.COMPLETED,
+        )

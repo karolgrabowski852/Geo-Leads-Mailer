@@ -1,6 +1,7 @@
 from django.db import models, transaction
 from django.db.models import Q
 from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
 from rest_framework import serializers
 from apps.app.fields import StrictEncryptedTextField
 
@@ -24,6 +25,7 @@ class SearchQuery(models.Model):
     accuracy = models.FloatField(null=True, blank=True)
     location = models.CharField(max_length=255)
     query = models.CharField(max_length=255)
+    searched_at = models.DateTimeField(default=timezone.now)
     result = models.JSONField(default=dict)
     companies = models.ManyToManyField(
         'Company',
@@ -39,6 +41,7 @@ class SearchQuery(models.Model):
                 query=query,
                 defaults={
                     'accuracy': accuracy,
+                    'searched_at': timezone.now(),
                     'result': result,
                 }
             )
@@ -52,12 +55,12 @@ class SearchQuery(models.Model):
 
 
 class Company(models.Model):
-    EMAIL_CRAWL_STATUS_CHOICES = (
-        ("not_started", "Not started"),
-        ("pending", "Pending"),
-        ("completed", "Completed"),
-        ("failed", "Failed"),
-    )
+
+    class CrawlStatus(models.TextChoices):
+        NOT_STARTED = "not_started", "Not started"
+        PENDING = "pending", "Pending"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
 
     query = models.ManyToManyField(SearchQuery, related_name='company_queries')
     name = models.CharField(max_length=255)
@@ -74,8 +77,8 @@ class Company(models.Model):
     latitude = models.FloatField(blank=True, null=True)
     longitude = models.FloatField(blank=True, null=True)
     email_crawl_status = models.CharField(
-        choices=EMAIL_CRAWL_STATUS_CHOICES,
-        default="not_started",
+        choices=CrawlStatus.choices,
+        default=CrawlStatus.NOT_STARTED,
         max_length=16,
     )
 
@@ -147,7 +150,9 @@ class Company(models.Model):
                             setattr(company, field, value)
                         if old_website != website:
                             company.email = ""
-                            company.email_crawl_status = "not_started"
+                            company.email_crawl_status = (
+                                Company.CrawlStatus.NOT_STARTED
+                            )
                         company.save()
 
                 search_query.companies.add(company)
@@ -159,12 +164,15 @@ class Company(models.Model):
         can_queue = Company.objects.filter(
             pk=self.pk,
             email="",
-            email_crawl_status__in=("not_started", "failed"),
-        ).update(email_crawl_status="pending")
+            email_crawl_status__in=(
+                self.CrawlStatus.NOT_STARTED,
+                self.CrawlStatus.FAILED,
+            ),
+        ).update(email_crawl_status=self.CrawlStatus.PENDING)
         if not can_queue:
             return False
 
-        self.email_crawl_status = "pending"
+        self.email_crawl_status = self.CrawlStatus.PENDING
         from apps.app.tasks import crawl_email_addresses
 
         try:
@@ -175,13 +183,9 @@ class Company(models.Model):
         except Exception:
             Company.objects.filter(
                 pk=self.pk,
-                email_crawl_status="pending",
-            ).update(email_crawl_status="failed")
-            self.email_crawl_status = "failed"
-            logger.exception(
-                "Could not queue website email extraction for company %s",
-                self.pk,
-            )
+                email_crawl_status=self.CrawlStatus.PENDING,
+            ).update(email_crawl_status=self.CrawlStatus.FAILED)
+            self.email_crawl_status = self.CrawlStatus.FAILED
             raise
         return True
 

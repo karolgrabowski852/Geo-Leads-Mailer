@@ -6,6 +6,20 @@ from apps.web.email_crawler import EmailCrawler
 
 
 class EmailCrawlerTests(SimpleTestCase):
+    def test_denies_social_media_domains_and_subdomains(self):
+        crawler = EmailCrawler()
+
+        for url in (
+            "https://x.com",
+            "https://www.reddit.com",
+            "https://youtu.be",
+            "https://web.telegram.org",
+        ):
+            with self.subTest(url=url):
+                self.assertTrue(crawler._is_denied_domain(url))
+
+        self.assertFalse(crawler._is_denied_domain("https://example.com"))
+
     def test_extract_emails_returns_only_valid_unique_addresses(self):
         html = """
             <a href="mailto:Info@example.com">Info</a>

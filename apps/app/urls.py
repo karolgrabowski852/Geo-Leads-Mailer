@@ -14,4 +14,9 @@ urlpatterns = [
         views.get_companies_for_location_query,
         name='get_companies_for_location_query',
     ),
+    path(
+        'get_companies_for_search',
+        views.get_companies_for_search,
+        name='get_companies_for_search',
+    ),
 ]

@@ -3,6 +3,7 @@ from django.urls import reverse
 from django.apps import apps
 from django.conf import settings
 from django.db import connection
+from django.utils.timezone import localtime
 from unittest.mock import patch
 from google.oauth2.credentials import Credentials
 
@@ -30,6 +31,26 @@ class ViewsTests(TestCase):
         )
         self.assertContains(resp, 'id="searchProgress"')
         self.assertContains(resp, 'aria-live="polite"')
+
+    def test_index_post_requires_login(self):
+        response = self.client.post(
+            reverse('index'),
+            data={},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(), {'error': 'Login required'})
+
+    def test_send_email_requires_login(self):
+        response = self.client.get(reverse('send_email'))
+
+        self.assertRedirects(response, reverse('login'), fetch_redirect_response=False)
+
+    def test_oauth_start_requires_login(self):
+        response = self.client.get(reverse('oauth_start'))
+
+        self.assertRedirects(response, reverse('login'), fetch_redirect_response=False)
 
     @override_settings(
         GOOGLE_OAUTH_CLIENT_ID='shared-client-id',
@@ -184,7 +205,10 @@ class ViewsTests(TestCase):
         session = self.client.session
         session['uid'] = self.user.id
         session.save()
-        search_query = SearchQuery.objects.create(location='Saved location', query='Q')
+        search_query = SearchQuery.objects.create(
+            location='Saved location',
+            query='Example search',
+        )
         self.user.results.add(search_query)
 
         response = self.client.get(reverse('send_email'))
@@ -192,7 +216,60 @@ class ViewsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'id="sendEmailForm"')
         self.assertContains(response, 'id="reciver"')
-        self.assertContains(response, 'Saved location')
+        self.assertContains(response, 'Zapisane wyszukiwania')
+        self.assertContains(response, 'Example search')
+        self.assertContains(
+            response,
+            localtime(search_query.searched_at).strftime('%d.%m.%Y %H:%M:%S'),
+        )
+        self.assertContains(response, f'value="{search_query.pk}"')
+        self.assertNotContains(response, 'Saved location')
+
+    def test_get_companies_for_search_returns_only_selected_search_companies(self):
+        session = self.client.session
+        session['uid'] = self.user.id
+        session.save()
+
+        selected_search = SearchQuery.objects.create(location='X', query='Q1')
+        other_search = SearchQuery.objects.create(location='X', query='Q2')
+        self.user.results.add(selected_search, other_search)
+        selected_company = Company.objects.create(
+            name='Selected',
+            email='selected@example.com',
+        )
+        other_company = Company.objects.create(
+            name='Other',
+            email='other@example.com',
+        )
+        selected_search.companies.add(selected_company)
+        other_search.companies.add(other_company)
+
+        response = self.client.get(
+            reverse('get_companies_for_search'),
+            data={'search_id': selected_search.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()['companies'],
+            [{
+                'id': selected_company.pk,
+                'name': 'Selected',
+                'email': 'selected@example.com',
+            }],
+        )
+
+        other_user = User.objects.create(
+            username='other',
+            email='other@example.com',
+        )
+        other_search = SearchQuery.objects.create(location='Y', query='Q3')
+        other_user.results.add(other_search)
+        other_response = self.client.get(
+            reverse('get_companies_for_search'),
+            data={'search_id': other_search.pk},
+        )
+        self.assertEqual(other_response.status_code, 404)
 
     def test_send_email_requires_recipients(self):
         session = self.client.session

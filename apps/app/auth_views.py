@@ -1,5 +1,4 @@
 import logging
-from functools import wraps
 
 import requests
 from google.auth.exceptions import GoogleAuthError
@@ -7,7 +6,6 @@ from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth import login as django_login
 from django.contrib.auth import logout as django_logout
-from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from google.auth.transport.requests import Request
@@ -20,6 +18,7 @@ from apps.web.google_oauth import (
     is_google_oauth_configured,
 )
 from .forms import LoginForm
+from .utils import is_authenticated
 
 logger = logging.getLogger(__name__)
 
@@ -42,36 +41,6 @@ def _google_oauth_configuration_error(request, template_name):
         },
         status=503,
     )
-
-
-def _get_current_user(request):
-    if request.user.is_authenticated:
-        return request.user
-    return _get_session_user(request)
-
-
-def _get_session_user(request):
-    UserModel = get_user_model()
-    uid = request.session.get("uid")
-    if uid:
-        try:
-            return UserModel.objects.get(id=uid)
-        except UserModel.DoesNotExist:
-            request.session.pop("uid", None)
-    return None
-
-
-def session_login_required_json(view_func):
-    @wraps(view_func)
-    def wrapper(request, *args, **kwargs):
-        if not _get_current_user(request):
-            return JsonResponse(
-                {"error": "Authentication required"},
-                status=401,
-            )
-        return view_func(request, *args, **kwargs)
-
-    return wrapper
 
 
 def login(request):
@@ -196,10 +165,8 @@ def logout(request):
     return redirect("login")
 
 
-def oauth_start(request):
-    user = _get_current_user(request)
-    if not user:
-        return redirect("login")
+@is_authenticated(on_failure=lambda _request: redirect("login"))
+def oauth_start(request, *, user):
     if not is_google_oauth_configured():
         return _google_oauth_configuration_error(request, "app/oauth.html")
     if not settings.SALT_KEY:
@@ -247,7 +214,8 @@ def oauth_start(request):
     return render(request, "app/oauth.html", {"auth_url": auth_url})
 
 
-def oauth_callback(request):
+@is_authenticated(on_failure=lambda _request: redirect("login"))
+def oauth_callback(request, *, user):
     if not is_google_oauth_configured():
         return _google_oauth_configuration_error(request, "app/oauth.html")
     if not settings.SALT_KEY:
@@ -258,10 +226,6 @@ def oauth_callback(request):
             status=503,
         )
     try:
-        user = _get_current_user(request)
-        if not user:
-            return redirect("login")
-
         state = request.session.pop("oauth_state", None)
         if not state:
             return render(

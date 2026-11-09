@@ -226,7 +226,7 @@ class PolygonQueryTests(TestCase):
         )
 
     @patch(
-        "apps.web.web_search.cache.get",
+        "apps.web.overpass_cache.cache.get",
         side_effect=RuntimeError("cache unavailable"),
     )
     @patch("apps.web.web_search.httpx.post")

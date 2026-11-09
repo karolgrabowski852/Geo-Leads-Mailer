@@ -17,26 +17,20 @@
     <form id="sendEmailForm" method="post" enctype="multipart/form-data" class="space-y-7">
       {% csrf_token %}
 
-      <section class="grid gap-5 md:grid-cols-3">
+      <section class="grid gap-5 md:grid-cols-2">
         <div>
-          <label for="location" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Zapisana lokalizacja</label>
-          <select id="location" name="location" required class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2.5 text-sm">
-            <option value="" selected disabled>Wybierz lokalizację</option>
-            {% for location in locations %}
-            <option value="{{ location }}">{{ location }}</option>
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <label for="searches" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Zapisane wyszukiwania</label>
+            <button type="button" id="selectAllSearches" class="text-xs text-brand-600 dark:text-sky-400 hover:underline">Wybierz wszystkie</button>
+          </div>
+          <select id="searches" name="search_ids" multiple size="5" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2 text-sm" aria-describedby="searchHelp">
+            {% for search in searches %}
+            <option value="{{ search.pk }}">{{ search.searched_at|date:"d.m.Y H:i:s" }} — {{ search.query }}</option>
             {% empty %}
             <option value="" disabled>Brak zapisanych wyszukiwań</option>
             {% endfor %}
           </select>
-        </div>
-
-        <div>
-          <div class="flex items-center justify-between gap-2 mb-2">
-            <label for="query" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Zapytania</label>
-            <button type="button" id="selectAllQueries" class="text-xs text-brand-600 dark:text-sky-400 hover:underline">Wybierz wszystkie</button>
-          </div>
-          <select id="query" name="query" multiple size="5" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/60 px-3 py-2 text-sm" aria-describedby="queryHelp"></select>
-          <p id="queryHelp" class="mt-1 text-xs text-slate-500 dark:text-slate-400">Możesz wybrać kilka zapytań.</p>
+          <p id="searchHelp" class="mt-1 text-xs text-slate-500 dark:text-slate-400">Wybierz wyszukiwania, z których pobrać adresy firm.</p>
         </div>
 
         <div>
@@ -80,7 +74,7 @@
 
       <div class="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 dark:border-slate-700 pt-5">
         <div class="text-xs text-slate-500 dark:text-slate-400">
-          Zapytania: <span id="summaryQueries">0</span> · adresy: <span id="summaryCompanies">0</span> · załączniki: <span id="summaryFiles">0</span>
+          Wyszukiwania: <span id="summarySearches">0</span> · adresy: <span id="summaryCompanies">0</span> · załączniki: <span id="summaryFiles">0</span>
         </div>
         <div class="flex gap-3">
           <button type="button" id="clearBtn" class="rounded-md border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm">Wyczyść</button>

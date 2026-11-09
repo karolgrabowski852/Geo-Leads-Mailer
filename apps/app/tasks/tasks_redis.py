@@ -19,7 +19,7 @@ def crawl_email_addresses(url: str, company_id: int | None = None):
             if company.website == url:
                 emails_joined = ", ".join(sorted(set(email_addresses)))
                 company.email = emails_joined
-                company.email_crawl_status = "completed"
+                company.email_crawl_status = Company.CrawlStatus.COMPLETED
                 company.save(update_fields=["email", "email_crawl_status"])
         return {"emails": email_addresses}
     except Exception:
@@ -27,7 +27,7 @@ def crawl_email_addresses(url: str, company_id: int | None = None):
             Company.objects.filter(
                 pk=company_id,
                 website=url,
-                email_crawl_status="pending",
-            ).update(email_crawl_status="failed")
+                email_crawl_status=Company.CrawlStatus.PENDING,
+            ).update(email_crawl_status=Company.CrawlStatus.FAILED)
         logger.exception("Website email extraction failed for %s", url)
         raise

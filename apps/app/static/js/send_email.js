@@ -1,9 +1,8 @@
-const locationSelect = document.getElementById('location');
-const querySelect = document.getElementById('query');
+const searchSelect = document.getElementById('searches');
 const companySelect = document.getElementById('reciver');
-const selectAllQueriesBtn = document.getElementById('selectAllQueries');
+const selectAllSearchesBtn = document.getElementById('selectAllSearches');
 const selectAllCompaniesBtn = document.getElementById('selectAllCompanies');
-const summaryQueries = document.getElementById('summaryQueries');
+const summarySearches = document.getElementById('summarySearches');
 const summaryCompanies = document.getElementById('summaryCompanies');
 const summaryFiles = document.getElementById('summaryFiles');
 const fileInput = document.getElementById('attachments');
@@ -74,41 +73,22 @@ function parseCustomEmails() {
 customEmailsInput?.addEventListener('input', parseCustomEmails);
 
 function updateSummary() {
-    summaryQueries.textContent = getSelectedValues(querySelect).length;
+    summarySearches.textContent = getSelectedValues(searchSelect).length;
     summaryCompanies.textContent = getSelectedValues(companySelect).length;
     summaryFiles.textContent = fileInput.files.length;
 }
 
-// Pobieranie danych na podstawie lokalizacji
-locationSelect.addEventListener('change', async () => {
-    clearSelect(querySelect);
+searchSelect.addEventListener('change', async () => {
     clearSelect(companySelect);
-    const loc = locationSelect.value;
-    if (!loc) return;
-
-    const resp = await fetch(`/get_queries_for_location?location=${encodeURIComponent(loc)}`);
-    const data = await resp.json();
-    (data.queries || []).forEach(q => {
-        const opt = document.createElement('option');
-        opt.value = q;
-        opt.textContent = q;
-        querySelect.appendChild(opt);
-    });
-    updateSummary();
-});
-
-querySelect.addEventListener('change', async () => {
-    clearSelect(companySelect);
-    const loc = locationSelect.value;
-    const queries = getSelectedValues(querySelect);
-    if (!loc || queries.length === 0) {
+    const searchIds = getSelectedValues(searchSelect);
+    if (searchIds.length === 0) {
         updateSummary();
         return;
     }
 
     const seen = new Set();
-    for (const q of queries) {
-        const resp = await fetch(`/get_companies_for_location_query?location=${encodeURIComponent(loc)}&query=${encodeURIComponent(q)}`);
+    for (const searchId of searchIds) {
+        const resp = await fetch(`/get_companies_for_search?search_id=${encodeURIComponent(searchId)}`);
         const data = await resp.json();
         (data.companies || []).forEach(c => {
             extractEmails(c.email).forEach(em => {
@@ -127,9 +107,9 @@ querySelect.addEventListener('change', async () => {
 });
 
 // Przyciski „Wybierz wszystkie”
-selectAllQueriesBtn.addEventListener('click', () => {
-    Array.from(querySelect.options).forEach(o => o.selected = true);
-    querySelect.dispatchEvent(new Event('change'));
+selectAllSearchesBtn.addEventListener('click', () => {
+    Array.from(searchSelect.options).forEach(o => o.selected = true);
+    searchSelect.dispatchEvent(new Event('change'));
 });
 
 selectAllCompaniesBtn.addEventListener('click', () => {
@@ -173,8 +153,7 @@ dropZone.addEventListener('drop', e => {
 });
 
 clearBtn.addEventListener('click', () => {
-    locationSelect.value = '';
-    clearSelect(querySelect);
+    Array.from(searchSelect.options).forEach(o => o.selected = false);
     clearSelect(companySelect);
     fileInput.value = '';
     fileList.innerHTML = '';

@@ -17,9 +17,25 @@ KEYWORD_PATHS = [
     "team", "impressum", "kariera"
 ]
 DENYLIST_DOMAINS = {
-            "linkedin.com", "facebook.com", "instagram.com", "twitter.com",
-            "tiktok.com", "youtube.com",
-        }
+    "linkedin.com",
+    "facebook.com",
+    "instagram.com",
+    "twitter.com",
+    "x.com",
+    "tiktok.com",
+    "youtube.com",
+    "youtu.be",
+    "threads.net",
+    "reddit.com",
+    "pinterest.com",
+    "snapchat.com",
+    "whatsapp.com",
+    "telegram.org",
+    "discord.com",
+    "twitch.tv",
+    "tumblr.com",
+    "quora.com",
+}
 
 class EmailCrawler:
     def __init__(self) -> None:

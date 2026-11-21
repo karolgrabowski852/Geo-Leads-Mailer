@@ -29,21 +29,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
 
-  uploads_init:
-    image: python:3.12-slim-bookworm
-    user: "0:0"
-    command: bash -lc "mkdir -p /app/uploads && chown -R 10001:10001 /app/uploads"
-    volumes:
-      - uploads_data:/app/uploads
-    restart: "no"
 
-  staticfiles_init:
-    image: python:3.12-slim-bookworm
-    user: "0:0"
-    command: bash -lc "mkdir -p /app/staticfiles && chown -R 10001:10001 /app/staticfiles"
-    volumes:
-      - staticfiles_data:/app/staticfiles
-    restart: "no"
 
   web:
     build:
@@ -115,8 +101,16 @@ services:
         condition: service_started
       db:
         condition: service_healthy
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes: 
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+
 
 volumes:
   pgdata:
   uploads_data:
   staticfiles_data:
+

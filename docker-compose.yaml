@@ -29,6 +29,22 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
 
+  uploads_init:
+    image: python:3.12-slim-bookworm
+    user: "0:0"
+    command: bash -lc "mkdir -p /app/uploads && chown -R 10001:10001 /app/uploads"
+    volumes:
+      - uploads_data:/app/uploads
+    restart: "no"
+
+  staticfiles_init:
+    image: python:3.12-slim-bookworm
+    user: "0:0"
+    command: bash -lc "mkdir -p /app/staticfiles && chown -R 10001:10001 /app/staticfiles"
+    volumes:
+      - staticfiles_data:/app/staticfiles
+    restart: "no"
+
   web:
     build:
       context: .
@@ -43,15 +59,20 @@ services:
       - ./apps:/app/apps:ro
       - ./manage.py:/app/manage.py:ro
       - ./pyproject.toml:/app/pyproject.toml:ro
-      - ./uploads:/app/uploads
-      - ./staticfiles:/app/staticfiles
+      - uploads_data:/app/uploads
+      - staticfiles_data:/app/staticfiles
     depends_on:
+      uploads_init:
+        condition: service_completed_successfully
+      staticfiles_init:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       rabbitmq:
         condition: service_started
       redis:
         condition: service_started
+
 
   celery_rabbit:
     build:
@@ -65,8 +86,10 @@ services:
       - ./apps:/app/apps:ro
       - ./manage.py:/app/manage.py:ro
       - ./pyproject.toml:/app/pyproject.toml:ro
-      - ./uploads:/app/uploads
+      - uploads_data:/app/uploads
     depends_on:
+      uploads_init:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_started
       db:
@@ -84,8 +107,10 @@ services:
       - ./apps:/app/apps:ro
       - ./manage.py:/app/manage.py:ro
       - ./pyproject.toml:/app/pyproject.toml:ro
-      - ./uploads:/app/uploads
+      - uploads_data:/app/uploads
     depends_on:
+      uploads_init:
+        condition: service_completed_successfully
       redis:
         condition: service_started
       db:
@@ -97,7 +122,10 @@ services:
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
+    profiles:
+      - certbot
 
 volumes:
   pgdata:
-    
+  uploads_data:
+  staticfiles_data:

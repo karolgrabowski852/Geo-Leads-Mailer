@@ -18,7 +18,7 @@ class SearchForm(forms.Form):
 
 
 class SendEmailForm(forms.Form):
-	location = forms.CharField(max_length=255)
+	location = forms.CharField(max_length=255, required=False)
 	subject = forms.CharField(max_length=255)
 	text = forms.CharField(widget=forms.Textarea)
 	delay_min = forms.IntegerField(min_value=0, required=False)

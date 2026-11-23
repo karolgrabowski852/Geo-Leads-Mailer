@@ -205,9 +205,9 @@ document.addEventListener('DOMContentLoaded', function() {
             return [];
         }
 
-        const firstKey = Object.keys(payload).find((key) => key.startsWith('polygon_search_'))
-            || Object.keys(payload)[0];
-        const placesMap = firstKey ? payload[firstKey] : null;
+        const placesMap = Object.entries(payload).find(
+            ([key, value]) => key.startsWith('polygon_search_') && value && typeof value === 'object'
+        )?.[1];
 
         if (!placesMap || typeof placesMap !== 'object') {
             return [];
@@ -271,8 +271,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const bounds = L.latLngBounds([]);
         places.forEach((place) => {
-            const latitude = Number(place?.latitude ?? place?.location?.latitude);
-            const longitude = Number(place?.longitude ?? place?.location?.longitude);
+            const latitude = Number(
+                place?.latitude
+                ?? place?.location?.latitude
+                ?? place?.lat
+            );
+            const longitude = Number(
+                place?.longitude
+                ?? place?.location?.longitude
+                ?? place?.lng
+                ?? place?.lon
+            );
             if (
                 !Number.isFinite(latitude)
                 || !Number.isFinite(longitude)
@@ -284,7 +293,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            const marker = L.marker([latitude, longitude]);
+            const marker = L.marker([latitude, longitude], {
+                icon: L.divIcon({
+                    className: 'search-result-marker-wrapper',
+                    html: '<span class="search-result-marker" aria-hidden="true"></span>',
+                    iconSize: [22, 22],
+                    iconAnchor: [11, 22],
+                    popupAnchor: [0, -22]
+                })
+            });
             marker.bindPopup(createPlaceDetailsElement(place));
             marker.addTo(resultMarkers);
             bounds.extend([latitude, longitude]);

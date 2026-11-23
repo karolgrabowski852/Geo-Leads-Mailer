@@ -8,6 +8,24 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
 <style>
     .leaflet-container { z-index: 10; }
+    .search-result-marker {
+        width: 22px;
+        height: 22px;
+        border: 3px solid #fff;
+        border-radius: 50% 50% 50% 0;
+        background: #1554db;
+        box-shadow: 0 2px 5px rgba(15, 23, 42, .45);
+        transform: rotate(-45deg);
+    }
+    .search-result-marker::after {
+        content: '';
+        display: block;
+        width: 7px;
+        height: 7px;
+        margin: 4px auto;
+        border-radius: 50%;
+        background: #fff;
+    }
 </style>
 {% endblock %}
 

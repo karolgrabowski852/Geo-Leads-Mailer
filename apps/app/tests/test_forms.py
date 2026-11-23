@@ -22,7 +22,7 @@ class FormsTests(TestCase):
         self.assertIn('custom_category', form.errors)
 
     def test_send_email_form_default_delay(self):
-        form = SendEmailForm(data={'location': 'L', 'subject': 'S', 'text': 'T'})
+        form = SendEmailForm(data={'subject': 'S', 'text': 'T'})
         self.assertTrue(form.is_valid())
         self.assertEqual(form.cleaned_data['delay_min'], 1)
 

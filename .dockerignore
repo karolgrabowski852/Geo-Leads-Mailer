@@ -1,7 +1,10 @@
 .env
 .gitignore
+.git
 .venv
 /uploads
+/certbot
+/test-uploads
 /.vscode
 /README.md
 /apps/app/tests

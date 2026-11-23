@@ -1,4 +1,5 @@
 import json
+from collections.abc import Mapping
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -34,6 +35,20 @@ def create_google_oauth_flow(*, scopes, redirect_uri, state=None) -> Flow:
         state=state,
         redirect_uri=redirect_uri,
     )
+
+
+def fetch_google_oauth_token(flow: Flow, *, authorization_response: str):
+    """Fetch a token while accepting scopes Google grants incrementally."""
+    requested_scopes = flow.oauth2session.scope
+    scope_to_restore = requested_scopes
+    flow.oauth2session.scope = None
+    try:
+        token = flow.fetch_token(authorization_response=authorization_response)
+        if isinstance(token, Mapping) and token.get("scope") is not None:
+            scope_to_restore = token["scope"]
+    finally:
+        flow.oauth2session.scope = scope_to_restore
+    return token
 
 
 def credentials_from_json(token_json: str, scopes) -> Credentials:

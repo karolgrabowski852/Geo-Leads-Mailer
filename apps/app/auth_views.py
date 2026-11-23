@@ -15,6 +15,7 @@ from apps.web.google_oauth import (
     create_google_oauth_flow,
     credentials_from_json,
     credentials_to_json,
+    fetch_google_oauth_token,
     is_google_oauth_configured,
 )
 from .forms import LoginForm
@@ -120,7 +121,10 @@ def login_oauth_callback(request):
             state=state,
             redirect_uri=redirect_uri,
         )
-        flow.fetch_token(authorization_response=request.build_absolute_uri())
+        fetch_google_oauth_token(
+            flow,
+            authorization_response=request.build_absolute_uri(),
+        )
         creds = flow.credentials
 
         userinfo_response = requests.get(
@@ -242,7 +246,10 @@ def oauth_callback(request, *, user):
             redirect_uri=redirect_uri,
         )
 
-        flow.fetch_token(authorization_response=request.build_absolute_uri())
+        fetch_google_oauth_token(
+            flow,
+            authorization_response=request.build_absolute_uri(),
+        )
 
         creds = flow.credentials
         user.token = credentials_to_json(creds)

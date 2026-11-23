@@ -39,6 +39,10 @@ The application requests the narrow Gmail scope
 messages and does not grant mailbox read access. Google classifies this scope
 as sensitive, so an external production application may need OAuth App
 Verification before it can be used without the unverified-app warning.
+Because the login and Gmail flows share one OAuth client, Google may also
+return previously granted sign-in scopes during the Gmail callback; the
+application accepts those additional granted scopes while still requiring
+`gmail.send` for Gmail operations.
 
 For a public deployment configure the OAuth consent screen in Google Cloud as
 follows:

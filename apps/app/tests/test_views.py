@@ -9,7 +9,7 @@ from google.oauth2.credentials import Credentials
 
 from apps.app.models import User, SearchQuery, Company
 from apps.web.mail_send import SCOPES
-from apps.web.google_oauth import credentials_from_json
+from apps.web.google_oauth import credentials_from_json, fetch_google_oauth_token
 
 
 @override_settings(DJANGO_SETTINGS_MODULE='apps.settings_test')
@@ -106,6 +106,7 @@ class ViewsTests(TestCase):
         flow_factory,
     ):
         flow = flow_factory.return_value
+        flow.fetch_token.return_value = {'scope': SCOPES}
         flow.credentials = Credentials(
             token='access-token-value',
             refresh_token='refresh-token-value',
@@ -156,6 +157,37 @@ class ViewsTests(TestCase):
 
         with self.assertRaises(ValueError):
             credentials_from_json(old_token, SCOPES)
+
+    def test_google_oauth_token_fetch_accepts_incrementally_granted_scopes(self):
+        granted_scopes = [
+            'openid',
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/gmail.send',
+            'https://www.googleapis.com/auth/userinfo.profile',
+        ]
+
+        class FlowStub:
+            class OAuthSessionStub:
+                scope = SCOPES
+
+            oauth2session = OAuthSessionStub()
+
+            def fetch_token(self, **kwargs):
+                self.scope_during_fetch = self.oauth2session.scope
+                return {'scope': granted_scopes, **kwargs}
+
+        flow = FlowStub()
+        result = fetch_google_oauth_token(
+            flow,
+            authorization_response='https://example.test/oauth/callback?code=code',
+        )
+
+        self.assertIsNone(flow.scope_during_fetch)
+        self.assertEqual(flow.oauth2session.scope, granted_scopes)
+        self.assertEqual(
+            result['authorization_response'],
+            'https://example.test/oauth/callback?code=code',
+        )
 
     @patch('apps.app.views.PolygonQuery.search')
     def test_index_post_saves_osm_results(self, mock_search):

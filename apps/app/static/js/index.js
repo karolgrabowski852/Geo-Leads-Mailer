@@ -25,7 +25,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
+    let searchMap = null;
     let drawnItems = null;
+    let resultMarkers = null;
     const updateCustomCategoryVisibility = () => {
         const isCustom = categorySelect.value === 'custom';
         customCategoryInput.classList.toggle('hidden', !isCustom);
@@ -64,7 +66,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof L !== 'undefined') {
         const mapElement = document.getElementById('map');
         if (mapElement) {
-            const map = L.map(mapElement).setView([52.23, 21.01], 12);
+            searchMap = L.map(mapElement).setView([52.23, 21.01], 12);
 
             let providerIndex = 0;
             let tileLayer = null;
@@ -72,7 +74,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const setTileLayer = () => {
                 if (tileLayer) {
-                    map.removeLayer(tileLayer);
+                    searchMap.removeLayer(tileLayer);
                 }
 
                 const provider = tileProviders[providerIndex];
@@ -96,14 +98,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         );
                     }
                 });
-                tileLayer.addTo(map);
+                tileLayer.addTo(searchMap);
             };
 
             setTileLayer();
-            setTimeout(() => map.invalidateSize(), 120);
+            setTimeout(() => searchMap.invalidateSize(), 120);
 
             drawnItems = new L.FeatureGroup();
-            map.addLayer(drawnItems);
+            searchMap.addLayer(drawnItems);
+            resultMarkers = L.layerGroup().addTo(searchMap);
 
             Object.assign(L.drawLocal.draw.toolbar.actions, {
                 title: 'Anuluj rysowanie',
@@ -167,7 +170,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     circlemarker: false
                 }
             });
-            map.addControl(drawControl);
+            searchMap.addControl(drawControl);
 
             const storePolygon = (layer) => {
                 drawnItems.clearLayers(); // Tylko jeden obszar na raz
@@ -179,10 +182,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 polygonInput.value = JSON.stringify(coords);
             };
 
-            map.on(L.Draw.Event.CREATED, function (event) {
+            searchMap.on(L.Draw.Event.CREATED, function (event) {
                 storePolygon(event.layer);
             });
-            map.on(L.Draw.Event.EDITED, function (event) {
+            searchMap.on(L.Draw.Event.EDITED, function (event) {
                 const editedLayer = event.layers.getLayers()[0];
                 if (editedLayer) {
                     storePolygon(editedLayer);
@@ -192,6 +195,10 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         pushToast('Nie można załadować biblioteki Leaflet.', 'error');
     }
+
+    const clearResultMarkers = () => {
+        resultMarkers?.clearLayers();
+    };
 
     const extractPlaces = (payload) => {
         if (!payload || typeof payload !== 'object') {
@@ -209,7 +216,87 @@ document.addEventListener('DOMContentLoaded', function() {
         return Object.values(placesMap);
     };
 
+    const getPlaceDetails = (place) => ({
+        name: place?.name || place?.displayName?.text || 'Firma bez nazwy',
+        address: place?.address || place?.formattedAddress || 'Brak adresu',
+        phone: place?.phone || place?.nationalPhoneNumber || 'Brak numeru telefonu',
+        website: place?.website || place?.websiteUri || '',
+        email: place?.osm_email || ''
+    });
+
+    const createPlaceDetailsElement = (place, elementType = 'article') => {
+        const details = getPlaceDetails(place);
+        const wrapper = document.createElement(elementType);
+        wrapper.className = 'rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 p-4';
+
+        const title = document.createElement('h4');
+        title.className = 'text-sm font-semibold text-slate-900 dark:text-slate-100';
+        title.textContent = details.name;
+
+        const addressEl = document.createElement('p');
+        addressEl.className = 'mt-2 text-xs text-slate-600 dark:text-slate-300';
+        addressEl.textContent = details.address;
+
+        const phoneEl = document.createElement('p');
+        phoneEl.className = 'mt-1 text-xs text-slate-500 dark:text-slate-300';
+        phoneEl.textContent = `Telefon: ${details.phone}`;
+
+        wrapper.append(title, addressEl, phoneEl);
+
+        if (details.email) {
+            const emailEl = document.createElement('p');
+            emailEl.className = 'mt-1 text-xs text-slate-500 dark:text-slate-300';
+            emailEl.textContent = `E-mail z OSM: ${details.email}`;
+            wrapper.appendChild(emailEl);
+        }
+
+        if (details.website) {
+            const link = document.createElement('a');
+            link.className = 'mt-2 inline-flex text-xs text-brand-600 hover:text-brand-700';
+            link.href = details.website;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = 'Strona internetowa';
+            wrapper.appendChild(link);
+        }
+
+        return wrapper;
+    };
+
+    const renderResultMarkers = (places) => {
+        clearResultMarkers();
+        if (!searchMap || !resultMarkers) {
+            return;
+        }
+
+        const bounds = L.latLngBounds([]);
+        places.forEach((place) => {
+            const latitude = Number(place?.latitude ?? place?.location?.latitude);
+            const longitude = Number(place?.longitude ?? place?.location?.longitude);
+            if (
+                !Number.isFinite(latitude)
+                || !Number.isFinite(longitude)
+                || latitude < -90
+                || latitude > 90
+                || longitude < -180
+                || longitude > 180
+            ) {
+                return;
+            }
+
+            const marker = L.marker([latitude, longitude]);
+            marker.bindPopup(createPlaceDetailsElement(place));
+            marker.addTo(resultMarkers);
+            bounds.extend([latitude, longitude]);
+        });
+
+        if (bounds.isValid()) {
+            searchMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+        }
+    };
+
     const renderEmptyState = (queryText, searchMessage = '') => {
+        clearResultMarkers();
         resultsPanel.classList.remove('hidden');
         resultsCount.textContent = '0';
         resultsMeta.textContent = `Brak wyników dla zapytania: ${queryText}${
@@ -235,51 +322,10 @@ document.addEventListener('DOMContentLoaded', function() {
             payload?.search_message ? ` — ${translateMessage(payload.search_message)}` : ''
         }`;
         resultsList.innerHTML = '';
+        renderResultMarkers(places);
 
         places.forEach((place) => {
-            const wrapper = document.createElement('article');
-            wrapper.className = 'rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 p-4';
-
-            const name = place?.name || place?.displayName?.text || 'Firma bez nazwy';
-            const address = place?.address || place?.formattedAddress || 'Brak adresu';
-            const phone = place?.phone || place?.nationalPhoneNumber || 'Brak numeru telefonu';
-            const website = place?.website || place?.websiteUri || '';
-            const email = place?.osm_email || '';
-
-            const title = document.createElement('h4');
-            title.className = 'text-sm font-semibold text-slate-900 dark:text-slate-100';
-            title.textContent = name;
-
-            const addressEl = document.createElement('p');
-            addressEl.className = 'mt-2 text-xs text-slate-600 dark:text-slate-300';
-            addressEl.textContent = address;
-
-            const phoneEl = document.createElement('p');
-            phoneEl.className = 'mt-1 text-xs text-slate-500 dark:text-slate-300';
-            phoneEl.textContent = `Telefon: ${phone}`;
-
-            wrapper.appendChild(title);
-            wrapper.appendChild(addressEl);
-            wrapper.appendChild(phoneEl);
-
-            if (email) {
-                const emailEl = document.createElement('p');
-                emailEl.className = 'mt-1 text-xs text-slate-500 dark:text-slate-300';
-                emailEl.textContent = `E-mail z OSM: ${email}`;
-                wrapper.appendChild(emailEl);
-            }
-
-            if (website) {
-                const link = document.createElement('a');
-                link.className = 'mt-2 inline-flex text-xs text-brand-600 hover:text-brand-700';
-                link.href = website;
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-                link.textContent = 'Strona internetowa';
-                wrapper.appendChild(link);
-            }
-
-            resultsList.appendChild(wrapper);
+            resultsList.appendChild(createPlaceDetailsElement(place));
         });
 
         return places.length;
@@ -289,6 +335,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (drawnItems) {
             drawnItems.clearLayers();
         }
+        clearResultMarkers();
         polygonInput.value = "";
     });
 
@@ -330,6 +377,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const formData = new FormData(form);
         let slowSearchTimer = null;
 
+        clearResultMarkers();
         form.setAttribute('aria-busy', 'true');
         searchProgress.classList.remove('hidden');
         searchProgressMessage.textContent =

@@ -1,5 +1,5 @@
 {% extends 'app/base.html' %}
-{% block title %}Logowanie — Email Bot{% endblock %}
+{% block title %}Logowanie — GeoLeads Mailer{% endblock %}
 {% block content %}
 <div class="max-w-md mx-auto">
   <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 p-8 shadow-soft">

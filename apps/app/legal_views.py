@@ -5,7 +5,6 @@ from django.views.decorators.http import require_GET
 
 def _legal_context() -> dict[str, str]:
     return {
-        "app_name": settings.APP_NAME,
         "controller_name": settings.PRIVACY_POLICY_CONTROLLER_NAME,
         "contact_email": settings.PRIVACY_POLICY_CONTACT_EMAIL,
         "effective_date": settings.PRIVACY_POLICY_EFFECTIVE_DATE,

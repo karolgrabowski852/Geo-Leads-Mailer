@@ -29,6 +29,17 @@ class ViewsTests(TestCase):
             resp.headers['Referrer-Policy'],
             'strict-origin-when-cross-origin',
         )
+        self.assertContains(resp, 'GeoLeads Mailer')
+        self.assertContains(resp, 'Znajdź firmy na mapie i docieraj do klientów')
+
+    def test_authenticated_index_get_shows_search_form(self):
+        session = self.client.session
+        session['uid'] = self.user.id
+        session.save()
+
+        resp = self.client.get(reverse('index'))
+
+        self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'id="searchProgress"')
         self.assertContains(resp, 'aria-live="polite"')
 

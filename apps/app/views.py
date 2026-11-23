@@ -45,6 +45,12 @@ def _index_authentication_required(request):
 
 @is_authenticated(methods=("POST",), on_failure=_index_authentication_required)
 def index(request, *, user):
+    if user is None and request.method == "GET":
+        return render(
+            request,
+            "app/landing.html",
+        )
+
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     context = {
         "current_user": user,

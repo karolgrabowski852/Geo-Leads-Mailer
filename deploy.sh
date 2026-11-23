@@ -1,7 +1,9 @@
 #!/bin/bash
 set -ex
-docker compose stop
-docker compose up -d --build
-docker compose exec web python manage.py migrate
-docker compose exec web python manage.py createcachetable
-docker compose exec web python manage.py collectstatic --noinput
+COMPOSE_FILE=docker-compose-prod.yaml
+
+docker compose -f "$COMPOSE_FILE" stop
+docker compose -f "$COMPOSE_FILE" up -d --build
+docker compose -f "$COMPOSE_FILE" exec web python manage.py migrate
+docker compose -f "$COMPOSE_FILE" exec web python manage.py createcachetable
+docker compose -f "$COMPOSE_FILE" exec web python manage.py collectstatic --noinput --clear

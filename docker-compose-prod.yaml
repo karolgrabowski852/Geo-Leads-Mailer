@@ -49,7 +49,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: bash -lc "uv run --no-sync manage.py migrate --noinput && uv run --no-sync manage.py collectstatic --noinput && uv run --no-sync gunicorn apps.wsgi:application -b 0.0.0.0:8000 --workers 3 --threads 2 --timeout 120"
+    command: bash -lc "uv run --no-sync manage.py migrate --noinput && uv run --no-sync manage.py collectstatic --noinput --clear && uv run --no-sync gunicorn apps.wsgi:application -b 0.0.0.0:8000 --workers 3 --threads 2 --timeout 120"
     env_file:
       - .env
     restart: unless-stopped

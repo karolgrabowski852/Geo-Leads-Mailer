@@ -52,6 +52,13 @@
     </div>
   </main>
   <footer class="mt-8 border-t border-slate-200/70 dark:border-slate-700/60">
+      <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-5 text-xs text-slate-500 dark:text-slate-400 lg:px-6">
+        <span>© GeoLeads Mailer</span>
+        <nav class="flex flex-wrap gap-4" aria-label="Informacje prawne">
+          <a href="{% url 'privacy_policy' %}" class="hover:text-slate-900 hover:underline dark:hover:text-white">Polityka prywatności</a>
+          <a href="{% url 'terms_of_service' %}" class="hover:text-slate-900 hover:underline dark:hover:text-white">Warunki korzystania</a>
+        </nav>
+      </div>
     </footer>
   
   <div id="toastHost" class="fixed inset-0 pointer-events-none flex flex-col items-end gap-2 p-4 z-50"></div>

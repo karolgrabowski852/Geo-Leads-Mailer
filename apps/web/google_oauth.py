@@ -41,6 +41,19 @@ def credentials_from_json(token_json: str, scopes) -> Credentials:
     if not isinstance(token_info, dict):
         raise ValueError("Stored Google OAuth token must be a JSON object.")
 
+    stored_scopes = token_info.get("scopes")
+    if stored_scopes is not None:
+        if isinstance(stored_scopes, str):
+            stored_scopes = stored_scopes.split()
+        if not isinstance(stored_scopes, list) or not all(
+            isinstance(scope, str) for scope in stored_scopes
+        ):
+            raise ValueError("Stored Google OAuth token has invalid scopes.")
+        if not set(scopes).issubset(stored_scopes):
+            raise ValueError(
+                "Stored Google OAuth token does not grant the required scopes."
+            )
+
     token_info["client_id"] = (
         token_info.get("client_id") or settings.GOOGLE_OAUTH_CLIENT_ID
     )

@@ -47,6 +47,16 @@ class ViewsTests(TestCase):
 
         self.assertRedirects(response, reverse('login'), fetch_redirect_response=False)
 
+    def test_public_legal_pages_are_available_without_login(self):
+        privacy_response = self.client.get(reverse('privacy_policy'))
+        terms_response = self.client.get(reverse('terms_of_service'))
+
+        self.assertEqual(privacy_response.status_code, 200)
+        self.assertContains(privacy_response, 'Polityka prywatności')
+        self.assertContains(privacy_response, 'privacy@example.com')
+        self.assertEqual(terms_response.status_code, 200)
+        self.assertContains(terms_response, 'Warunki korzystania')
+
     def test_oauth_start_requires_login(self):
         response = self.client.get(reverse('oauth_start'))
 
@@ -105,6 +115,10 @@ class ViewsTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         flow.fetch_token.assert_called_once()
+        self.assertEqual(
+            flow_factory.call_args.kwargs['scopes'],
+            ['https://www.googleapis.com/auth/gmail.send'],
+        )
         self.user.refresh_from_db()
         self.assertNotIn('shared-client-secret', self.user.token)
         self.assertIn('refresh-token-value', self.user.token)
@@ -118,6 +132,19 @@ class ViewsTests(TestCase):
             )
             stored_token = cursor.fetchone()[0]
         self.assertNotIn('refresh-token-value', stored_token)
+
+    def test_old_full_gmail_scope_requires_reauthorization(self):
+        old_token = Credentials(
+            token='access-token-value',
+            refresh_token='refresh-token-value',
+            token_uri='https://oauth2.googleapis.com/token',
+            client_id='test-client-id.apps.googleusercontent.com',
+            client_secret='test-client-secret',
+            scopes=['https://mail.google.com/'],
+        ).to_json()
+
+        with self.assertRaises(ValueError):
+            credentials_from_json(old_token, SCOPES)
 
     @patch('apps.app.views.PolygonQuery.search')
     def test_index_post_saves_osm_results(self, mock_search):

@@ -15,7 +15,7 @@ from apps.web.google_oauth import credentials_from_json, credentials_to_json
 
 logger = logging.getLogger(__name__)
 
-SCOPES = ["https://mail.google.com/"]
+SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
 User = get_user_model()
 
 

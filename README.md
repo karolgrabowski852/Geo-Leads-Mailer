@@ -32,6 +32,43 @@ Gmail refresh tokens are encrypted in PostgreSQL with
 Set `FIELD_ENCRYPTION_SALT_KEYS` and `DJANGO_SECRET_KEY` outside the database
 and keep them stable so stored tokens remain readable.
 
+### OAuth production checklist
+
+The application requests the narrow Gmail scope
+`https://www.googleapis.com/auth/gmail.send`, which is sufficient for sending
+messages and does not grant mailbox read access. Google classifies this scope
+as sensitive, so an external production application may need OAuth App
+Verification before it can be used without the unverified-app warning.
+
+For a public deployment configure the OAuth consent screen in Google Cloud as
+follows:
+
+1. Select **External** as the user type and choose **In production** as the
+   publishing status.
+2. Verify the application domain and set the homepage URL to the public
+   application origin, for example `https://example.com/`.
+3. Set the privacy policy URL to
+   `https://example.com/privacy-policy` and the terms of service URL to
+   `https://example.com/terms-of-service`.
+4. Add `https://example.com/login/oauth/callback` and
+   `https://example.com/oauth/callback` as authorized redirect URIs.
+5. Add the Gmail send scope and the sign-in scopes used by the login flow to
+   the consent-screen configuration.
+6. Submit the app for verification if Google requests it. Keep the consent
+   screen, public homepage, privacy policy, and requested scopes consistent.
+
+Set `PRIVACY_POLICY_CONTROLLER_NAME` and
+`PRIVACY_POLICY_CONTACT_EMAIL` in the deployment environment before publishing
+the application. The legal pages are public and are available at
+`/privacy-policy` and `/terms-of-service`. The privacy policy should be
+reviewed and adapted to the actual data controller, retention periods, and
+legal basis before production use.
+
+Changing the Gmail scope means that users who previously authorized the old
+`https://mail.google.com/` scope are required to authorize Gmail again. The
+application rejects a stored token when it does not grant the configured
+`gmail.send` scope.
+
 ## Application Flow
 
 Below is a simplified ASCII diagram showing the flow of the application:

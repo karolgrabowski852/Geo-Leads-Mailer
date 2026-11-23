@@ -70,6 +70,10 @@ OVERPASS_USER_AGENT = "GeoLeadsMailer-test/1.0"
 GOOGLE_OAUTH_CLIENT_ID = "test-client-id.apps.googleusercontent.com"
 GOOGLE_OAUTH_CLIENT_SECRET = "test-client-secret"
 PUBLIC_BASE_URL = "https://testserver"
+APP_NAME = "GeoLeads Mailer"
+PRIVACY_POLICY_CONTROLLER_NAME = "Test operator"
+PRIVACY_POLICY_CONTACT_EMAIL = "privacy@example.com"
+PRIVACY_POLICY_EFFECTIVE_DATE = "2026-11-23"
 
 # Staly klucz testowy - testy szyfrowania musza byc deterministyczne.
 SALT_KEY = ["test-field-encryption-salt"]

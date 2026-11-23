@@ -1,0 +1,81 @@
+{% extends "app/base.html" %}
+
+{% block title %}Warunki korzystania — {{ app_name }}{% endblock %}
+
+{% block content %}
+<article class="mx-auto max-w-4xl rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/90 dark:bg-slate-900/80 p-6 sm:p-10 shadow-soft">
+  <header class="mb-10 border-b border-slate-200 dark:border-slate-700 pb-6">
+    <p class="mb-3 text-sm font-medium text-brand-600 dark:text-sky-400">{{ app_name }}</p>
+    <h1 class="text-3xl font-bold tracking-tight">Warunki korzystania</h1>
+    <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">
+      Ostatnia aktualizacja: {{ effective_date }}
+    </p>
+  </header>
+
+  <div class="space-y-8 text-sm leading-7 text-slate-600 dark:text-slate-300">
+    <section>
+      <h2 class="mb-2 text-xl font-semibold text-slate-900 dark:text-white">1. Zakres usługi</h2>
+      <p>
+        {{ app_name }} pomaga wyszukiwać firmy, zbierać publiczne dane
+        kontaktowe i wysyłać wiadomości za pośrednictwem konta Gmail
+        użytkownika. Korzystając z aplikacji, użytkownik akceptuje niniejsze
+        warunki oraz
+        <a class="text-brand-600 underline dark:text-sky-400" href="{% url 'privacy_policy' %}">Politykę prywatności</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2 class="mb-2 text-xl font-semibold text-slate-900 dark:text-white">2. Konto i autoryzacja Google</h2>
+      <p>
+        Użytkownik odpowiada za dane logowania do aplikacji oraz za zgodę na
+        wysyłanie wiadomości z wybranego konta Google. Udzielenie i cofnięcie
+        dostępu Gmail odbywa się w Google. Użytkownik nie może udostępniać
+        swojego konta ani wykorzystywać aplikacji do uzyskiwania
+        nieuprawnionego dostępu do cudzych danych.
+      </p>
+    </section>
+
+    <section>
+      <h2 class="mb-2 text-xl font-semibold text-slate-900 dark:text-white">3. Odpowiedzialność za wiadomości</h2>
+      <p>
+        Użytkownik odpowiada za treść wiadomości, odbiorców, załączniki oraz
+        zgodność wysyłki z prawem, zgodami odbiorców, zasadami Google i
+        przepisami dotyczącymi komunikacji elektronicznej. Aplikacji nie wolno
+        używać do spamu, oszustw, naruszania prywatności ani innych działań
+        bezprawnych.
+      </p>
+    </section>
+
+    <section>
+      <h2 class="mb-2 text-xl font-semibold text-slate-900 dark:text-white">4. Dane zewnętrzne i dostępność</h2>
+      <p>
+        Wyniki wyszukiwania zależą od danych OpenStreetMap, stron internetowych
+        firm oraz dostępności usług zewnętrznych. Operator nie gwarantuje
+        kompletności, aktualności ani nieprzerwanej dostępności tych danych.
+      </p>
+    </section>
+
+    <section>
+      <h2 class="mb-2 text-xl font-semibold text-slate-900 dark:text-white">5. Zablokowanie dostępu i zmiany</h2>
+      <p>
+        Operator może ograniczyć dostęp do aplikacji, jeżeli jest to potrzebne
+        dla bezpieczeństwa, przeciwdziałania nadużyciom lub utrzymania usługi.
+        Warunki mogą zostać zmienione wraz ze zmianą funkcji aplikacji lub
+        wymagań prawnych. Nowa wersja będzie publikowana pod tym adresem.
+      </p>
+    </section>
+
+    <section>
+      <h2 class="mb-2 text-xl font-semibold text-slate-900 dark:text-white">6. Kontakt</h2>
+      {% if contact_email %}
+        <p>
+          Pytania dotyczące aplikacji można kierować na adres
+          <a class="text-brand-600 underline dark:text-sky-400" href="mailto:{{ contact_email }}">{{ contact_email }}</a>.
+        </p>
+      {% else %}
+        <p>Kontakt należy skonfigurować przed udostępnieniem aplikacji użytkownikom.</p>
+      {% endif %}
+    </section>
+  </div>
+</article>
+{% endblock %}

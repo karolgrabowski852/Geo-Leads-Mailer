@@ -1,8 +1,18 @@
 from django.urls import path
-from . import views
+from . import legal_views, views
 
 urlpatterns = [
     path('', views.index, name='index'),
+    path(
+        'privacy-policy',
+        legal_views.privacy_policy,
+        name='privacy_policy',
+    ),
+    path(
+        'terms-of-service',
+        legal_views.terms_of_service,
+        name='terms_of_service',
+    ),
     path('send_email', views.send_email, name='send_email'),
     path(
         'get_queries_for_location',
